@@ -69,11 +69,17 @@ pub fn main() {
         .unwrap();
     if state.must_load_initial_inputs() {
         state
-            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[opt.input_dir.clone()])
+            .load_initial_inputs(
+                &mut fuzzer,
+                &mut executor,
+                &mut mgr,
+                &[opt.input_dir.clone()],
+            )
             .unwrap_or_else(|err| {
                 panic!(
                     "Failed to load initial corpus at {:?}: {:?}",
-                    &[opt.input_dir], err
+                    &[opt.input_dir],
+                    err
                 )
             });
         println!("We imported {} inputs from disk.", state.corpus().count());
@@ -82,9 +88,15 @@ pub fn main() {
     let mutator =
         StdScheduledMutator::with_max_stack_pow(havoc_mutations().merge(tokens_mutations()), 6);
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
-    fuzzer
-        .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
-        .expect("Error in the fuzzing loop");
+    if opt.bench_just_one {
+        fuzzer
+            .fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)
+            .expect("Error benching just once");
+    } else {
+        fuzzer
+            .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
+            .expect("Error in the fuzzing loop");
+    }
 }
 
 /// The commandline args this fuzzer accepts
@@ -96,9 +108,14 @@ pub fn main() {
 )]
 struct Opt {
     executable: PathBuf,
+
     // NOTE: afl-fuzz does not accept multiple input directories
     #[arg(short = 'i')]
     input_dir: PathBuf,
     #[arg(short = 'o')]
     output_dir: PathBuf,
+
+    // Environment Variables
+    #[arg(env = "AFL_BENCH_JUST_ONE")]
+    bench_just_one: bool,
 }
