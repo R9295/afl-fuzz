@@ -61,6 +61,7 @@ pub fn main() {
     let mut tokens = Tokens::new();
     let mut executor = ForkserverExecutor::builder()
         .program(opt.executable)
+        .debug_child(opt.debug_child)
         .shmem_provider(&mut shmem_provider)
         .autotokens(&mut tokens)
         .coverage_map_size(MAP_SIZE)
@@ -120,4 +121,6 @@ struct Opt {
     bench_just_one: bool,
     #[arg(env = "AFL_HANG_TMOUT", default_value_t = 1000)]
     hang_timeout: u64,
+    #[arg(env = "AFL_DEBUG_CHILD")]
+    debug_child: bool,
 }
