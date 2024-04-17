@@ -65,6 +65,7 @@ pub fn main() {
         .shmem_provider(&mut shmem_provider)
         .autotokens(&mut tokens)
         .coverage_map_size(MAP_SIZE)
+        .is_persistent(opt.is_persistent)
         .timeout(Duration::from_millis(opt.hang_timeout))
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
@@ -123,4 +124,6 @@ struct Opt {
     hang_timeout: u64,
     #[arg(env = "AFL_DEBUG_CHILD")]
     debug_child: bool,
+    #[arg(env = "AFL_PERSISTENT")]
+    is_persistent: bool,
 }
