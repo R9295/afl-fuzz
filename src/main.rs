@@ -64,7 +64,7 @@ pub fn main() {
         .shmem_provider(&mut shmem_provider)
         .autotokens(&mut tokens)
         .coverage_map_size(MAP_SIZE)
-        .timeout(Duration::from_millis(1000))
+        .timeout(Duration::from_millis(opt.hang_timeout))
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
     if state.must_load_initial_inputs() {
@@ -118,4 +118,6 @@ struct Opt {
     // Environment Variables
     #[arg(env = "AFL_BENCH_JUST_ONE")]
     bench_just_one: bool,
+    #[arg(env = "AFL_HANG_TMOUT", default_value_t = 1000)]
+    hang_timeout: u64,
 }
