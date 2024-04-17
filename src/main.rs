@@ -63,10 +63,13 @@ pub fn main() {
         .program(opt.executable)
         .debug_child(opt.debug_child)
         .shmem_provider(&mut shmem_provider)
-        .autotokens(&mut tokens)
         .coverage_map_size(MAP_SIZE)
         .is_persistent(opt.is_persistent)
-        .timeout(Duration::from_millis(opt.hang_timeout))
+        .timeout(Duration::from_millis(opt.hang_timeout));
+    if !opt.no_autodict {
+        executor = executor.autotokens(&mut tokens);
+    };
+    let mut executor = executor
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
     if state.must_load_initial_inputs() {
@@ -126,4 +129,7 @@ struct Opt {
     debug_child: bool,
     #[arg(env = "AFL_PERSISTENT")]
     is_persistent: bool,
+
+    #[arg(env = "AFL_NO_AUTODICT")]
+    no_autodict: bool,
 }
