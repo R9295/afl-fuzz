@@ -1,0 +1,10 @@
+[package]
+name = "afl-fuzz"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive", "env"] }
+libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", features = ["std", "derive"], tag = "0.12.0"}
+libafl_bolts = { git = "https://github.com/AFLplusplus/LibAFL.git", tag = "0.12.0"}
+nix = "0.27"
