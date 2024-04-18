@@ -26,6 +26,7 @@ use libafl_bolts::{
     tuples::{tuple_list, Merge},
     AsMutSlice,
 };
+use nix::sys::signal::Signal;
 #[allow(clippy::similar_names)]
 pub fn main() {
     const MAP_SIZE: usize = 65536;
@@ -65,6 +66,7 @@ pub fn main() {
         .shmem_provider(&mut shmem_provider)
         .coverage_map_size(MAP_SIZE)
         .is_persistent(opt.is_persistent)
+        .kill_signal(opt.kill_signal)
         .timeout(Duration::from_millis(opt.hang_timeout));
     if !opt.no_autodict {
         executor = executor.autotokens(&mut tokens);
@@ -104,13 +106,14 @@ pub fn main() {
     }
 }
 
-/// The commandline args this fuzzer accepts
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Parser)]
 #[command(
     name = "afl-fuzz",
     about = "afl-fuzz, now in rust!",
     author = "r9295 <aarnavbos@gmail.com>"
 )]
+/// The commandline args the fuzzer accepts
 struct Opt {
     executable: PathBuf,
 
@@ -129,7 +132,8 @@ struct Opt {
     debug_child: bool,
     #[arg(env = "AFL_PERSISTENT")]
     is_persistent: bool,
-
     #[arg(env = "AFL_NO_AUTODICT")]
     no_autodict: bool,
+    #[arg(env = "AFL_KILL_SIGNAL", default_value_t = Signal::SIGKILL)]
+    kill_signal: Signal,
 }
