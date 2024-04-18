@@ -104,7 +104,7 @@ fn main() {
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
     if opt.bench_just_one {
         fuzzer
-            .fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)
+            .fuzz_loop_for(&mut stages, &mut executor, &mut state, &mut mgr, 1)
             .expect("Error benching just once");
     } else {
         fuzzer
