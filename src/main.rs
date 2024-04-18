@@ -1,3 +1,4 @@
+#![allow(clippy::similar_names)]
 /// Using `https://github.com/AFLplusplus/LibAFL/tree/main/fuzzers/forkserver_simple`
 use core::time::Duration;
 use std::path::PathBuf;
@@ -27,12 +28,18 @@ use libafl_bolts::{
     AsMutSlice,
 };
 use nix::sys::signal::Signal;
-#[allow(clippy::similar_names)]
-pub fn main() {
-    const MAP_SIZE: usize = 65536;
+
+const AFL_MAP_SIZE_MIN: u32 = u32::pow(2, 3);
+const AFL_MAP_SIZE_MAX: u32 = u32::pow(2, 30);
+
+fn main() {
     let opt = Opt::parse();
+    let map_size: usize = opt
+        .map_size
+        .try_into()
+        .expect("we should be able to convert map_size to usize");
     let mut shmem_provider = UnixShMemProvider::new().unwrap();
-    let mut shmem = shmem_provider.new_shmem(MAP_SIZE).unwrap();
+    let mut shmem = shmem_provider.new_shmem(map_size).unwrap();
     shmem.write_to_env("__AFL_SHM_ID").unwrap();
     let shmem_buf = shmem.as_mut_slice();
     let edges_observer = unsafe {
@@ -64,7 +71,7 @@ pub fn main() {
         .program(opt.executable)
         .debug_child(opt.debug_child)
         .shmem_provider(&mut shmem_provider)
-        .coverage_map_size(MAP_SIZE)
+        .coverage_map_size(map_size)
         .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
         .timeout(Duration::from_millis(opt.hang_timeout));
@@ -136,4 +143,20 @@ struct Opt {
     no_autodict: bool,
     #[arg(env = "AFL_KILL_SIGNAL", default_value_t = Signal::SIGKILL)]
     kill_signal: Signal,
+    #[arg(env = "AFL_MAP_SIZE", default_value_t = 65536,
+        value_parser= validate_map_size)]
+    map_size: u32,
+}
+
+fn validate_map_size(s: &str) -> Result<u32, String> {
+    let map_size: u32 = s
+        .parse()
+        .map_err(|_| format!("`{s}` isn't a valid unsigned integer"))?;
+    if map_size > AFL_MAP_SIZE_MIN && map_size < AFL_MAP_SIZE_MAX {
+        Ok(map_size)
+    } else {
+        Err(format!(
+            "AFL_MAP_SIZE not in range {AFL_MAP_SIZE_MIN}-{AFL_MAP_SIZE_MAX}",
+        ))
+    }
 }
