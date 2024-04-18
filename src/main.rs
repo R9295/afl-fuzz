@@ -156,7 +156,7 @@ fn validate_map_size(s: &str) -> Result<u32, String> {
         Ok(map_size)
     } else {
         Err(format!(
-            "AFL_MAP_SIZE not in range {AFL_MAP_SIZE_MIN}-{AFL_MAP_SIZE_MAX}",
+            "AFL_MAP_SIZE not in range {AFL_MAP_SIZE_MIN} (2 ^ 3) - {AFL_MAP_SIZE_MAX} (2 ^ 30)",
         ))
     }
 }
