@@ -8,8 +8,8 @@ use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::SimpleEventManager,
     executors::forkserver::ForkserverExecutor,
-    feedback_and_fast, feedback_or,
-    feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
+    feedback_and, feedback_or, feedback_or_fast,
+    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::BytesInput,
     monitors::SimpleMonitor,
@@ -50,8 +50,15 @@ fn main() {
         MaxMapFeedback::new(&edges_observer),
         TimeFeedback::with_observer(&time_observer)
     );
-    let mut objective = feedback_and_fast!(
+    let mut objective = feedback_or_fast!(
         CrashFeedback::new(),
+        // TODO: benchmark, potentially implement `ConditionalFeedback`.
+        // This is a hack to ensure the types of objectitve remain the same in case of
+        // ignore_timeouts
+        feedback_and!(
+            ConstFeedback::new(opt.ignore_timeouts),
+            TimeoutFeedback::new()
+        ),
         MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
     );
     let mut state = StdState::new(
@@ -146,6 +153,8 @@ struct Opt {
     #[arg(env = "AFL_MAP_SIZE", default_value_t = 65536,
         value_parser= validate_map_size)]
     map_size: u32,
+    #[arg(env = "AFL_IGNORE_TIMEOUTS")]
+    ignore_timeouts: bool,
 }
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
