@@ -79,6 +79,7 @@ fn main() {
         .coverage_map_size(map_size)
         .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
+        .debug_child(opt.debug_child)
         .timeout(Duration::from_millis(opt.hang_timeout));
     if let Some(crash_exitcode) = opt.crash_exitcode {
         executor = executor.crash_exitcode(crash_exitcode)
