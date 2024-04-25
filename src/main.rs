@@ -56,7 +56,7 @@ fn main() {
         // This is a hack to ensure the types of objectitve remain the same in case of
         // ignore_timeouts
         feedback_and!(
-            ConstFeedback::new(opt.ignore_timeouts),
+            ConstFeedback::new(!opt.ignore_timeouts),
             TimeoutFeedback::new()
         ),
         MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
