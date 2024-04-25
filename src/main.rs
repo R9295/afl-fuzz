@@ -1,7 +1,7 @@
 #![allow(clippy::similar_names)]
 /// Using `https://github.com/AFLplusplus/LibAFL/tree/main/fuzzers/forkserver_simple`
 use core::time::Duration;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use clap::Parser;
 use libafl::{
@@ -74,12 +74,23 @@ fn main() {
     let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, QueueScheduler::new());
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
     let mut tokens = Tokens::new();
+    let mut target_env = HashMap::new();
+    if let Some(ref target_env_str) = opt.target_env {
+        let env_regex = regex::Regex::new(r"([^\s=]+)\s*=\s*([^\s]+)").unwrap();
+        for vars in env_regex.captures_iter(&target_env_str) {
+            target_env.insert(
+                vars.get(1).expect("should have name").as_str(),
+                vars.get(2).expect("should have value").as_str(),
+            );
+        }
+    }
     let mut executor = ForkserverExecutor::builder()
         .program(opt.executable)
         .coverage_map_size(map_size)
         .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
         .debug_child(opt.debug_child)
+        .envs(target_env)
         .timeout(Duration::from_millis(opt.hang_timeout));
     if let Some(crash_exitcode) = opt.crash_exitcode {
         executor = executor.crash_exitcode(crash_exitcode)
@@ -186,6 +197,8 @@ struct Opt {
     cur_input_dir: Option<PathBuf>,
     #[arg(env = "AFL_CRASH_EXITCODE")]
     crash_exitcode: Option<i32>,
+    #[arg(env = "AFL_TARGET_ENV")]
+    target_env: Option<String>,
 }
 
 fn validate_map_size(s: &str) -> Result<u32, String> {

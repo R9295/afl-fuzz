@@ -25,6 +25,7 @@ dependencies = [
  "libafl",
  "libafl_bolts",
  "nix",
+ "regex",
 ]
 
 [[package]]

@@ -10,3 +10,4 @@ clap = { version = "4.5.4", features = ["derive", "env"] }
 libafl = { path = "../LibAFL/libafl", feautres = ["std", "derive"]}
 libafl_bolts = { path = "../LibAFL/libafl_bolts"}
 nix = "0.27"
+regex = "1.10.4"
