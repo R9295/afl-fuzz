@@ -25,7 +25,7 @@ use libafl_bolts::{
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
     tuples::{tuple_list, Merge},
-    AsMutSlice,
+    AsSliceMut,
 };
 use nix::sys::signal::Signal;
 
@@ -41,7 +41,7 @@ fn main() {
     let mut shmem_provider = UnixShMemProvider::new().unwrap();
     let mut shmem = shmem_provider.new_shmem(map_size).unwrap();
     shmem.write_to_env("__AFL_SHM_ID").unwrap();
-    let shmem_buf = shmem.as_mut_slice();
+    let shmem_buf = shmem.as_slice_mut();
     let edges_observer = unsafe {
         HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)).track_indices()
     };
@@ -89,20 +89,29 @@ fn main() {
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
     if state.must_load_initial_inputs() {
-        state
-            .load_initial_inputs(
+        println!("{}", opt.exit_on_seed_issues);
+        if opt.exit_on_seed_issues {
+            state.load_initial_inputs_disallow_solution(
                 &mut fuzzer,
                 &mut executor,
                 &mut mgr,
                 &[opt.input_dir.clone()],
             )
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Failed to load initial corpus at {:?}: {:?}",
-                    &[opt.input_dir],
-                    err
-                )
-            });
+        } else {
+            state.load_initial_inputs(
+                &mut fuzzer,
+                &mut executor,
+                &mut mgr,
+                &[opt.input_dir.clone()],
+            )
+        }
+        .unwrap_or_else(|err| {
+            panic!(
+                "Failed to load initial corpus at {:?}: {:?}",
+                &[opt.input_dir],
+                err
+            )
+        });
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
     state.add_metadata(tokens);
@@ -155,6 +164,8 @@ struct Opt {
     map_size: u32,
     #[arg(env = "AFL_IGNORE_TIMEOUTS")]
     ignore_timeouts: bool,
+    #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]
+    exit_on_seed_issues: bool,
 }
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
