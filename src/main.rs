@@ -59,8 +59,7 @@ fn main() {
         feedback_and!(
             ConstFeedback::new(!opt.ignore_timeouts),
             TimeoutFeedback::new()
-        ),
-        MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
+        )
     );
     let mut state = StdState::new(
         StdRand::with_seed(current_nanos()),
@@ -81,6 +80,9 @@ fn main() {
         .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
         .timeout(Duration::from_millis(opt.hang_timeout));
+    if let Some(crash_exitcode) = opt.crash_exitcode {
+        executor = executor.crash_exitcode(crash_exitcode)
+    }
     if !opt.no_autodict {
         executor = executor.autotokens(&mut tokens);
     };
@@ -181,6 +183,8 @@ struct Opt {
     exit_on_seed_issues: bool,
     #[arg(env = "AFL_TMPDIR")]
     cur_input_dir: Option<PathBuf>,
+    #[arg(env = "AFL_CRASH_EXITCODE")]
+    crash_exitcode: Option<i32>,
 }
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
