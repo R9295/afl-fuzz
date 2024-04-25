@@ -137,6 +137,7 @@ fn main() {
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
             .expect("Error in the fuzzing loop");
     }
+    // TODO: serialize state when exiting.
 }
 
 #[allow(clippy::struct_excessive_bools)]
