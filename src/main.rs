@@ -17,7 +17,7 @@ use libafl::{
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler},
     stages::mutational::StdMutationalStage,
-    state::{HasCorpus, StdState},
+    state::{HasCorpus, HasSolutions, StdState},
     HasMetadata,
 };
 use libafl_bolts::{
@@ -76,8 +76,6 @@ fn main() {
     let mut tokens = Tokens::new();
     let mut executor = ForkserverExecutor::builder()
         .program(opt.executable)
-        .debug_child(opt.debug_child)
-        .shmem_provider(&mut shmem_provider)
         .coverage_map_size(map_size)
         .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
@@ -89,7 +87,6 @@ fn main() {
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
     if state.must_load_initial_inputs() {
-        println!("{}", opt.exit_on_seed_issues);
         if opt.exit_on_seed_issues {
             state.load_initial_inputs_disallow_solution(
                 &mut fuzzer,
@@ -122,6 +119,15 @@ fn main() {
         fuzzer
             .fuzz_loop_for(&mut stages, &mut executor, &mut state, &mut mgr, 1)
             .expect("Error benching just once");
+    } else if opt.bench_until_crash {
+        loop {
+            fuzzer
+                .fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)
+                .expect("error fuzzing one;");
+            if state.solutions().count() > 0 {
+                break;
+            }
+        }
     } else {
         fuzzer
             .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
@@ -149,6 +155,8 @@ struct Opt {
     // Environment Variables
     #[arg(env = "AFL_BENCH_JUST_ONE")]
     bench_just_one: bool,
+    #[arg(env = "AFL_BENCH_UNTIL_CRASH")]
+    bench_until_crash: bool,
     #[arg(env = "AFL_HANG_TMOUT", default_value_t = 1000)]
     hang_timeout: u64,
     #[arg(env = "AFL_DEBUG_CHILD")]
