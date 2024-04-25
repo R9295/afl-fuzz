@@ -22,6 +22,7 @@ use libafl::{
 };
 use libafl_bolts::{
     current_nanos,
+    fs::get_unique_std_input_file,
     rands::StdRand,
     shmem::{ShMem, ShMemProvider, UnixShMemProvider},
     tuples::{tuple_list, Merge},
@@ -83,6 +84,9 @@ fn main() {
     if !opt.no_autodict {
         executor = executor.autotokens(&mut tokens);
     };
+    if let Some(cur_input_dir) = opt.cur_input_dir {
+        executor = executor.arg_input_file(cur_input_dir.join(get_unique_std_input_file()))
+    }
     let mut executor = executor
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
@@ -174,6 +178,8 @@ struct Opt {
     ignore_timeouts: bool,
     #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]
     exit_on_seed_issues: bool,
+    #[arg(env = "AFL_TMPDIR")]
+    cur_input_dir: Option<PathBuf>,
 }
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
