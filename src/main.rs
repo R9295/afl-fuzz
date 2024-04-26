@@ -8,7 +8,7 @@ use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::SimpleEventManager,
     executors::forkserver::ForkserverExecutor,
-    feedback_and, feedback_or, feedback_or_fast,
+    feedback_and, feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::BytesInput,
@@ -39,27 +39,39 @@ fn main() {
         .map_size
         .try_into()
         .expect("we should be able to convert map_size to usize");
+
     let mut shmem_provider = UnixShMemProvider::new().unwrap();
     let mut shmem = shmem_provider.new_shmem(map_size).unwrap();
     shmem.write_to_env("__AFL_SHM_ID").unwrap();
     let shmem_buf = shmem.as_slice_mut();
+
+    // Create an observation channel using the signals map
     let edges_observer = unsafe {
         HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)).track_indices()
     };
+
+    // Create an observation channel to keep track of the execution time
     let time_observer = TimeObserver::new("time");
+
+    // Feedback to rate the interestingness of an input
+    // This one is composed by two Feedbacks in OR
     let mut feedback = feedback_or!(
         MaxMapFeedback::new(&edges_observer),
         TimeFeedback::with_observer(&time_observer)
     );
-    let mut objective = feedback_or_fast!(
-        CrashFeedback::new(),
-        // TODO: benchmark, potentially implement `ConditionalFeedback`.
-        // This is a hack to ensure the types of objectitve remain the same in case of
-        // ignore_timeouts
-        feedback_and!(
-            ConstFeedback::new(!opt.ignore_timeouts),
-            TimeoutFeedback::new()
-        )
+
+    let mut objective = feedback_and_fast!(
+        feedback_or_fast!(
+            CrashFeedback::new(),
+            // TODO: benchmark, potentially implement `ConditionalFeedback`.
+            // This is a hack to ensure the types of objectitve remain the same in case of
+            // ignore_timeouts
+            feedback_and!(
+                ConstFeedback::new(!opt.ignore_timeouts),
+                TimeoutFeedback::new()
+            )
+        ),
+        MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
     );
     let mut state = StdState::new(
         StdRand::with_seed(current_nanos()),
@@ -77,7 +89,7 @@ fn main() {
     let mut target_env = HashMap::new();
     if let Some(ref target_env_str) = opt.target_env {
         let env_regex = regex::Regex::new(r"([^\s=]+)\s*=\s*([^\s]+)").unwrap();
-        for vars in env_regex.captures_iter(&target_env_str) {
+        for vars in env_regex.captures_iter(target_env_str) {
             target_env.insert(
                 vars.get(1).expect("should have name").as_str(),
                 vars.get(2).expect("should have value").as_str(),
@@ -196,7 +208,7 @@ struct Opt {
     #[arg(env = "AFL_TMPDIR")]
     cur_input_dir: Option<PathBuf>,
     #[arg(env = "AFL_CRASH_EXITCODE")]
-    crash_exitcode: Option<i32>,
+    crash_exitcode: Option<i8>,
     #[arg(env = "AFL_TARGET_ENV")]
     target_env: Option<String>,
 }
