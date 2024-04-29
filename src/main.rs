@@ -188,7 +188,7 @@ struct Opt {
     bench_just_one: bool,
     #[arg(env = "AFL_BENCH_UNTIL_CRASH")]
     bench_until_crash: bool,
-    #[arg(env = "AFL_HANG_TMOUT", default_value_t = 1000)]
+    #[arg(env = "AFL_HANG_TMOUT", default_value_t = 20)]
     hang_timeout: u64,
     #[arg(env = "AFL_DEBUG_CHILD")]
     debug_child: bool,
