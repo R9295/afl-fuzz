@@ -1,9 +1,9 @@
-#![allow(clippy::similar_names)]
 /// Using `https://github.com/AFLplusplus/LibAFL/tree/main/fuzzers/forkserver_simple`
 use core::time::Duration;
 use std::{collections::HashMap, path::PathBuf};
-
+mod feedback;
 use clap::Parser;
+use feedback::{FeedbackLocation, SeedFeedback};
 use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::SimpleEventManager,
@@ -18,7 +18,7 @@ use libafl::{
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler},
     stages::mutational::StdMutationalStage,
     state::{HasCorpus, HasSolutions, StdState},
-    HasMetadata,
+    HasFeedback, HasMetadata, HasObjective,
 };
 use libafl_bolts::{
     current_nanos,
@@ -49,29 +49,35 @@ fn main() {
     let edges_observer = unsafe {
         HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)).track_indices()
     };
-
     // Create an observation channel to keep track of the execution time
     let time_observer = TimeObserver::new("time");
 
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
-    let mut feedback = feedback_or!(
-        MaxMapFeedback::new(&edges_observer),
-        TimeFeedback::with_observer(&time_observer)
-    );
-
-    let mut objective = feedback_and_fast!(
-        feedback_or_fast!(
-            CrashFeedback::new(),
-            // TODO: benchmark, potentially implement `ConditionalFeedback`.
-            // This is a hack to ensure the types of objectitve remain the same in case of
-            // ignore_timeouts
-            feedback_and!(
-                ConstFeedback::new(!opt.ignore_timeouts),
-                TimeoutFeedback::new()
-            )
+    let mut feedback = SeedFeedback::new(
+        feedback_or!(
+            MaxMapFeedback::new(&edges_observer),
+            TimeFeedback::new(&time_observer)
         ),
-        MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
+        FeedbackLocation::Feedback,
+        opt.clone(),
+    );
+    let mut objective = SeedFeedback::new(
+        feedback_and_fast!(
+            feedback_or_fast!(
+                CrashFeedback::new(),
+                // TODO: benchmark, potentially implement `ConditionalFeedback`.
+                // This is a hack to ensure the types of objectitve remain the same in case of
+                // ignore_timeouts
+                feedback_and!(
+                    ConstFeedback::new(!opt.ignore_timeouts),
+                    TimeoutFeedback::new()
+                )
+            ),
+            MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
+        ),
+        feedback::FeedbackLocation::Objective,
+        opt.clone(),
     );
     let mut state = StdState::new(
         StdRand::with_seed(current_nanos()),
@@ -117,31 +123,27 @@ fn main() {
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
     if state.must_load_initial_inputs() {
-        if opt.exit_on_seed_issues {
-            state.load_initial_inputs_disallow_solution(
+        state
+            .load_initial_inputs(
                 &mut fuzzer,
                 &mut executor,
                 &mut mgr,
                 &[opt.input_dir.clone()],
             )
-        } else {
-            state.load_initial_inputs(
-                &mut fuzzer,
-                &mut executor,
-                &mut mgr,
-                &[opt.input_dir.clone()],
-            )
-        }
-        .unwrap_or_else(|err| {
-            panic!(
-                "Failed to load initial corpus at {:?}: {:?}",
-                &[opt.input_dir],
-                err
-            )
-        });
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Failed to load initial corpus at {:?}: {:?}",
+                    &[opt.input_dir],
+                    err
+                )
+            });
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
     state.add_metadata(tokens);
+
+    fuzzer.objective_mut().done_loading_seeds();
+    fuzzer.feedback_mut().done_loading_seeds();
+
     let mutator =
         StdScheduledMutator::with_max_stack_pow(havoc_mutations().merge(tokens_mutations()), 6);
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
@@ -167,7 +169,7 @@ fn main() {
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[command(
     name = "afl-fuzz",
     about = "afl-fuzz, now in rust!",
@@ -188,7 +190,7 @@ struct Opt {
     bench_just_one: bool,
     #[arg(env = "AFL_BENCH_UNTIL_CRASH")]
     bench_until_crash: bool,
-    #[arg(env = "AFL_HANG_TMOUT", default_value_t = 20)]
+    #[arg(env = "AFL_HANG_TMOUT", default_value_t = 100)]
     hang_timeout: u64,
     #[arg(env = "AFL_DEBUG_CHILD")]
     debug_child: bool,
@@ -203,14 +205,21 @@ struct Opt {
     map_size: u32,
     #[arg(env = "AFL_IGNORE_TIMEOUTS")]
     ignore_timeouts: bool,
-    #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]
-    exit_on_seed_issues: bool,
     #[arg(env = "AFL_TMPDIR")]
     cur_input_dir: Option<PathBuf>,
     #[arg(env = "AFL_CRASH_EXITCODE")]
     crash_exitcode: Option<i8>,
     #[arg(env = "AFL_TARGET_ENV")]
     target_env: Option<String>,
+
+    // Seed config
+    #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]
+    exit_on_seed_issues: bool,
+    // renamed from IGNORE_SEED_PROBLEMS
+    #[arg(env = "AFL_IGNORE_SEED_ISSUES")]
+    ignore_seed_issues: bool,
+    #[arg(env = "AFL_CRASHING_SEED_AS_NEW_CRASH")]
+    crash_seed_as_new_crash: bool,
 }
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
