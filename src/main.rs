@@ -15,7 +15,10 @@ use libafl::{
     monitors::SimpleMonitor,
     mutators::{scheduled::havoc_mutations, tokens_mutations, StdScheduledMutator, Tokens},
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
-    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler},
+    schedulers::{
+        powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler,
+        StdWeightedScheduler,
+    },
     stages::mutational::StdMutationalStage,
     state::{HasCorpus, HasSolutions, StdState},
     HasFeedback, HasMetadata, HasObjective,
@@ -89,7 +92,11 @@ fn main() {
     .unwrap();
     let monitor = SimpleMonitor::new(|s| println!("{s}"));
     let mut mgr = SimpleEventManager::new(monitor);
-    let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, QueueScheduler::new());
+    let strategy = opt.power_schedule.unwrap_or(PowerScheduleCustom::EXPLORE);
+    let scheduler = IndexesLenTimeMinimizerScheduler::new(
+        &edges_observer,
+        StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(strategy.into())),
+    );
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
     let mut tokens = Tokens::new();
     let mut target_env = HashMap::new();
@@ -168,6 +175,36 @@ fn main() {
     // TODO: serialize state when exiting.
 }
 
+/// The power schedule to use; Copied so we can use clap::ValueEnum
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PowerScheduleCustom {
+    /// The `explore` power schedule
+    EXPLORE,
+    /// The `exploit` power schedule
+    EXPLOIT,
+    /// The `fast` power schedule
+    FAST,
+    /// The `coe` power schedule
+    COE,
+    /// The `lin` power schedule
+    LIN,
+    /// The `quad` power schedule
+    QUAD,
+}
+
+impl From<PowerScheduleCustom> for PowerSchedule {
+    fn from(val: PowerScheduleCustom) -> Self {
+        match val {
+            PowerScheduleCustom::EXPLORE => PowerSchedule::EXPLORE,
+            PowerScheduleCustom::COE => PowerSchedule::COE,
+            PowerScheduleCustom::LIN => PowerSchedule::LIN,
+            PowerScheduleCustom::FAST => PowerSchedule::FAST,
+            PowerScheduleCustom::QUAD => PowerSchedule::QUAD,
+            PowerScheduleCustom::EXPLOIT => PowerSchedule::EXPLOIT,
+        }
+    }
+}
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -184,7 +221,8 @@ struct Opt {
     input_dir: PathBuf,
     #[arg(short = 'o')]
     output_dir: PathBuf,
-
+    #[arg(short = 'p')]
+    power_schedule: Option<PowerScheduleCustom>,
     // Environment Variables
     #[arg(env = "AFL_BENCH_JUST_ONE")]
     bench_just_one: bool,
