@@ -102,6 +102,8 @@ where
                             if self.opt.exit_on_seed_issues {
                                 return Err(Error::invalid_corpus("input let to a crash; either omit AFL_EXIT_ON_SEED_ISSUES or set it to false."));
                             }
+                            // We regard all crashes as uninteresting during seed loading
+                            return Ok(false);
                         }
                     }
                 }

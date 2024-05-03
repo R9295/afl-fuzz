@@ -111,6 +111,7 @@ fn main() {
     }
     let mut executor = ForkserverExecutor::builder()
         .program(opt.executable)
+        .shmem_provider(&mut shmem_provider)
         .coverage_map_size(map_size)
         .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
