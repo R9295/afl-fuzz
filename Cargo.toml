@@ -9,5 +9,6 @@ clap = { version = "4.5.4", features = ["derive", "env"] }
 #libafl_bolts = { git = "https://github.com/AFLplusplus/LibAFL.git"}
 libafl = { path = "../LibAFL/libafl", feautres = ["std", "derive"]}
 libafl_bolts = { path = "../LibAFL/libafl_bolts"}
+libafl_targets = { path = "../LibAFL/libafl_targets"}
 nix = "0.27"
 regex = "1.10.4"
