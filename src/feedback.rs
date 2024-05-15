@@ -13,12 +13,12 @@ pub enum FeedbackLocation {
     Feedback,
 }
 /// A wrapper feedback used to determine actions for initial seeds.
-/// Handles AFL_EXIT_ON_SEED_ISSUES, AFL_IGNORE_SEED_ISSUES & default afl-fuzz behavior
+/// Handles `AFL_EXIT_ON_SEED_ISSUES`, `AFL_IGNORE_SEED_ISSUES` & default afl-fuzz behavior
 /// then, essentially becomes a "const" feedback.
 ///
 /// Note:
-/// For LibAFL breaking changes, this Feedback will only work if LibAFL checks
-/// that the Input is a `Solution` before it checks if it is "corpus_worthy"
+/// For `LibAFL` breaking changes, this Feedback will only work if `LibAFL` checks
+/// that the Input is a `Solution` before it checks if it is `corpus_worthy`
 ///
 #[derive(Debug)]
 pub struct SeedFeedback<A, S>

@@ -35,6 +35,7 @@ use nix::sys::signal::Signal;
 const AFL_MAP_SIZE_MIN: u32 = u32::pow(2, 3);
 const AFL_MAP_SIZE_MAX: u32 = u32::pow(2, 30);
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let opt = Opt::parse();
     let map_size: usize = opt
@@ -119,13 +120,13 @@ fn main() {
         .envs(target_env)
         .timeout(Duration::from_millis(opt.hang_timeout));
     if let Some(crash_exitcode) = opt.crash_exitcode {
-        executor = executor.crash_exitcode(crash_exitcode)
+        executor = executor.crash_exitcode(crash_exitcode);
     }
     if !opt.no_autodict {
         executor = executor.autotokens(&mut tokens);
     };
     if let Some(cur_input_dir) = opt.cur_input_dir {
-        executor = executor.arg_input_file(cur_input_dir.join(get_unique_std_input_file()))
+        executor = executor.arg_input_file(cur_input_dir.join(get_unique_std_input_file()));
     }
     let mut executor = executor
         .build(tuple_list!(time_observer, edges_observer))
@@ -176,7 +177,7 @@ fn main() {
     // TODO: serialize state when exiting.
 }
 
-/// The power schedule to use; Copied so we can use clap::ValueEnum
+/// The power schedule to use; Copied so we can use `clap::ValueEnum`
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PowerScheduleCustom {
     /// The `explore` power schedule
