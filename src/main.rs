@@ -16,10 +16,9 @@ use libafl::{
     mutators::{scheduled::havoc_mutations, tokens_mutations, StdScheduledMutator, Tokens},
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{
-        powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler,
-        StdWeightedScheduler,
+        powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::mutational::StdMutationalStage,
+    stages::{mutational::StdMutationalStage, CalibrationStage},
     state::{HasCorpus, HasSolutions, StdState},
     HasFeedback, HasMetadata, HasObjective,
 };
@@ -52,16 +51,17 @@ fn main() {
     let edges_observer = unsafe {
         HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)).track_indices()
     };
+
+    let map_feedback = MaxMapFeedback::new(&edges_observer);
+
+    let calibration = CalibrationStage::new(&map_feedback);
     // Create an observation channel to keep track of the execution time
     let time_observer = TimeObserver::new("time");
 
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
     let mut feedback = SeedFeedback::new(
-        feedback_or!(
-            MaxMapFeedback::new(&edges_observer),
-            TimeFeedback::new(&time_observer)
-        ),
+        feedback_or!(map_feedback, TimeFeedback::new(&time_observer)),
         FeedbackLocation::Feedback,
         opt.clone(),
     );
@@ -154,7 +154,7 @@ fn main() {
 
     let mutator =
         StdScheduledMutator::with_max_stack_pow(havoc_mutations().merge(tokens_mutations()), 6);
-    let mut stages = tuple_list!(StdMutationalStage::new(mutator));
+    let mut stages = tuple_list!(calibration, StdMutationalStage::new(mutator),);
     if opt.bench_just_one {
         fuzzer
             .fuzz_loop_for(&mut stages, &mut executor, &mut state, &mut mgr, 1)
