@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
 // The following line is needed for shared memeory testcase fuzzing
 __AFL_FUZZ_INIT();
 

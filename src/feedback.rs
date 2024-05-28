@@ -139,6 +139,17 @@ where
         self.first.discard_metadata(state, input)?;
         Ok(())
     }
+    #[cfg(feature = "track_hit_feedbacks")]
+    fn last_result(&self) -> Result<bool, Error> {
+        self.first.last_result()
+    }
+    #[cfg(feature = "track_hit_feedbacks")]
+    fn append_hit_feedbacks(&self, list: &mut Vec<Cow<'static, str>>) -> Result<(), Error> {
+        if self.first.last_result()? {
+            self.first.append_hit_feedbacks(list)?;
+        }
+        Ok(())
+    }
 }
 
 impl<S, A> Named for SeedFeedback<A, S>
