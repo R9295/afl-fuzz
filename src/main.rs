@@ -1,20 +1,25 @@
-/// Using `https://github.com/AFLplusplus/LibAFL/tree/main/fuzzers/forkserver_simple`
+// Using `https://github.com/AFLplusplus/LibAFL/tree/main/fuzzers/forkserver_simple`
+#![deny(clippy::pedantic)]
 use core::time::Duration;
-use std::{collections::HashMap, path::PathBuf};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf,};
+mod afl_stats;
 mod feedback;
 use clap::Parser;
 use feedback::{FeedbackLocation, SeedFeedback};
 use libafl::{
-    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
+    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus, Testcase},
     events::SimpleEventManager,
     executors::forkserver::{ForkserverExecutor, ForkserverExecutorBuilder},
     feedback_and, feedback_and_fast, feedback_or, feedback_or_fast,
-    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
+    feedbacks::{
+        custom_testcase_filename::CustomTestcaseFilenameFeedback, ConstFeedback, CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback,
+    },
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::BytesInput,
     monitors::SimpleMonitor,
     mutators::{
-        scheduled::havoc_mutations, tokens_mutations, AFLppRedQueen, StdMOptMutator, Tokens,
+        scheduled::havoc_mutations, tokens_mutations, AFLppRedQueen,
+        StdScheduledMutator, Tokens,
     },
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{
@@ -24,11 +29,11 @@ use libafl::{
         mutational::MultiMutationalStage, CalibrationStage, ColorizationStage, IfStage,
         StdPowerMutationalStage,
     },
-    state::{HasCorpus, HasCurrentTestcase, HasSolutions, StdState},
+    state::{HasCorpus, HasCurrentTestcase, HasExecutions, HasSolutions, HasStartTime, StdState},
     Error, HasFeedback, HasMetadata, HasObjective,
 };
 use libafl_bolts::{
-    current_nanos,
+    current_nanos, current_time,
     fs::get_unique_std_input_file,
     ownedref::OwnedRefMut,
     rands::StdRand,
@@ -70,23 +75,88 @@ fn main() {
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
     let mut feedback = SeedFeedback::new(
-        feedback_or!(map_feedback, TimeFeedback::new(&time_observer)),
+        feedback_and!(
+            feedback_or!(map_feedback, TimeFeedback::new(&time_observer)),
+            CustomTestcaseFilenameFeedback::new(
+                |state: &mut StdState<
+                    BytesInput,
+                    InMemoryCorpus<BytesInput>,
+                    StdRand,
+                    OnDiskCorpus<BytesInput>,
+                >,
+                 testcase: &mut Testcase<BytesInput>| {
+                    let mut name = format!("id:{0:>6}", state.corpus().peek_free_id());
+                    if let Some(parent_id) = state.corpus().current() {
+                        name = format!("{name};src:{parent_id:>6}");
+                    }
+                    println!("{:#?}", 1);
+                    let time = if state.must_load_initial_inputs() {
+                        0 
+                    } else {
+                        (current_time() - *state.start_time()).as_secs()
+                    };
+                    name = format!("{name};time:{time}");
+                    name = format!("{name};execs:{}", *state.executions());
+                    // op: ?
+                    // rep: ?
+                    if testcase
+                        .hit_feedbacks()
+                        .contains(&Cow::Borrowed("shared_mem"))
+                    {
+                        name = format!("{name},+cov");
+                    }
+                    println!("{name:#?}");
+                    Ok(name)
+                }
+            )
+        ),
         FeedbackLocation::Feedback,
         opt.clone(),
     );
     let mut objective = SeedFeedback::new(
-        feedback_and_fast!(
-            feedback_or_fast!(
-                CrashFeedback::new(),
-                // TODO: benchmark, potentially implement `ConditionalFeedback`.
-                // This is a hack to ensure the types of objectitve remain the same in case of
-                // ignore_timeouts
-                feedback_and!(
-                    ConstFeedback::new(!opt.ignore_timeouts),
-                    TimeoutFeedback::new()
-                )
+        feedback_and!(
+            feedback_and_fast!(
+                feedback_or_fast!(
+                    CrashFeedback::new(),
+                    // TODO: benchmark, potentially implement `ConditionalFeedback`.
+                    // This is a hack to ensure the types of objectitve remain the same in case of
+                    // ignore_timeouts
+                    feedback_and!(
+                        ConstFeedback::new(!opt.ignore_timeouts),
+                        TimeoutFeedback::new()
+                    )
+                ),
+                MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
             ),
-            MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
+            CustomTestcaseFilenameFeedback::new(
+                |state: &mut StdState<
+                    BytesInput,
+                    InMemoryCorpus<BytesInput>,
+                    StdRand,
+                    OnDiskCorpus<BytesInput>,
+                >,
+                 testcase: &mut Testcase<BytesInput>| {
+                    let mut name = format!("id:{0:>6}", state.corpus().peek_free_id());
+                    // sig:0SIGNAL
+                    if let Some(parent_id) = state.corpus().current() {
+                        name = format!("{name};src:{parent_id:>6}");
+                    }
+                    // TODO: verify if 0 time if objective found during seed loading
+                    let time = if state.must_load_initial_inputs() {
+                        0 
+                    } else {
+                        (current_time() - *state.start_time()).as_secs()
+                    };
+                    name = format!("{name};time:{time}");
+                    name = format!("{name};execs:{}", testcase.executions());
+                    // op: ?
+                    // rep: ?
+                    if testcase.hit_objectives().contains(&Cow::Borrowed("TimeoutFeedback")) {
+                        name = format!("{name},+tout");
+                    }
+                    Ok(name)
+                }
+            )
         ),
         feedback::FeedbackLocation::Objective,
         opt.clone(),
@@ -102,14 +172,9 @@ fn main() {
     let monitor = SimpleMonitor::new(|s| println!("{s}"));
     let mut mgr = SimpleEventManager::new(monitor);
 
-    let mutator = StdMOptMutator::new(
-        &mut state,
+    let power = StdPowerMutationalStage::new(StdScheduledMutator::new(
         havoc_mutations().merge(tokens_mutations()),
-        7,
-        5,
-    )
-    .unwrap();
-    let power = StdPowerMutationalStage::new(mutator);
+    ));
 
     let strategy = opt.power_schedule.unwrap_or(PowerScheduleCustom::EXPLORE);
     let scheduler = IndexesLenTimeMinimizerScheduler::new(
@@ -164,7 +229,7 @@ fn main() {
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
     state.add_metadata(tokens);
-
+    *state.start_time_mut() = current_time();
     fuzzer.objective_mut().done_loading_seeds();
     fuzzer.feedback_mut().done_loading_seeds();
     if let Some(ref cmplog_binary) = opt.cmplog_binary {
@@ -276,6 +341,17 @@ impl From<PowerScheduleCustom> for PowerSchedule {
         }
     }
 }
+#[derive(Debug, Parser, Clone)]
+enum HarnessInputType {
+    Stdin,
+    File,
+}
+
+impl Default for HarnessInputType {
+    fn default() -> Self {
+        Self::Stdin
+    }
+}
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Parser, Clone)]
@@ -287,6 +363,8 @@ impl From<PowerScheduleCustom> for PowerSchedule {
 /// The commandline args the fuzzer accepts
 struct Opt {
     executable: PathBuf,
+    #[arg(value_parser = validate_harness_input_type)]
+    harness_input_stdin: Option<String>,
 
     // NOTE: afl-fuzz does not accept multiple input directories
     #[arg(short = 'i')]
@@ -347,6 +425,13 @@ fn validate_map_size(s: &str) -> Result<u32, String> {
     }
 }
 
+fn validate_harness_input_type(s: &str) -> Result<String, String> {
+    if s != "@@" {
+        return Err("Unknown harness input type. Use \"@@\" for file, omit for stdin ".to_string());
+    }
+    Ok(s.to_string())
+}
+
 fn base_executor<'a>(
     opt: &'a Opt,
     timeout: Duration,
@@ -354,7 +439,7 @@ fn base_executor<'a>(
     target_env: &HashMap<&'a str, &'a str>,
     shmem_provider: &'a mut UnixShMemProvider,
 ) -> ForkserverExecutorBuilder<'a, UnixShMemProvider> {
-    let executor = ForkserverExecutor::builder()
+    let mut executor = ForkserverExecutor::builder()
         .program(opt.executable.clone())
         .shmem_provider(shmem_provider)
         .coverage_map_size(map_size)
@@ -363,5 +448,8 @@ fn base_executor<'a>(
         .debug_child(opt.debug_child)
         .envs(target_env)
         .timeout(timeout);
+    if let Some(harness_input_type) = &opt.harness_input_stdin {
+        executor = executor.parse_afl_cmdline([harness_input_type]);
+    }
     executor
 }
