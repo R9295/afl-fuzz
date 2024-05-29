@@ -5,6 +5,7 @@ use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 mod afl_stats;
 mod feedback;
 use clap::Parser;
+use corpus::generate_base_filename;
 use feedback::{FeedbackLocation, SeedFeedback};
 use libafl::{
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus, Testcase},
@@ -32,6 +33,7 @@ use libafl::{
     state::{HasCorpus, HasCurrentTestcase, HasExecutions, HasSolutions, HasStartTime, StdState},
     Error, HasFeedback, HasMetadata, HasObjective,
 };
+mod corpus;
 use libafl_bolts::{
     current_nanos, current_time,
     fs::get_unique_std_input_file,
@@ -85,24 +87,12 @@ fn main() {
                     OnDiskCorpus<BytesInput>,
                 >,
                  testcase: &mut Testcase<BytesInput>| {
-                    let mut name = format!("id:{0:>6}", state.corpus().peek_free_id());
-                    if let Some(parent_id) = state.corpus().current() {
-                        name = format!("{name};src:{parent_id:>6}");
-                    }
-                    let time = if state.must_load_initial_inputs() {
-                        0
-                    } else {
-                        (current_time() - *state.start_time()).as_secs()
-                    };
-                    name = format!("{name};time:{time}");
-                    name = format!("{name};execs:{}", *state.executions());
-                    // TODO: change hardcoded values
-                    name = format!("{name};op:havoc;rep:0");
+                    let mut name = generate_base_filename(state)?;
                     if testcase
                         .hit_feedbacks()
                         .contains(&Cow::Borrowed("shared_mem"))
                     {
-                        name = format!("{name},+cov");
+                        name = format!("{name},+cov")
                     }
                     Ok(name)
                 }
@@ -134,21 +124,9 @@ fn main() {
                     OnDiskCorpus<BytesInput>,
                 >,
                  testcase: &mut Testcase<BytesInput>| {
-                    let mut name = format!("id:{0:>6}", state.corpus().peek_free_id());
                     // sig:0SIGNAL
-                    if let Some(parent_id) = state.corpus().current() {
-                        name = format!("{name};src:{parent_id:>6}");
-                    }
                     // TODO: verify if 0 time if objective found during seed loading
-                    let time = if state.must_load_initial_inputs() {
-                        0
-                    } else {
-                        (current_time() - *state.start_time()).as_secs()
-                    };
-                    name = format!("{name};time:{time}");
-                    name = format!("{name};execs:{}", testcase.executions());
-                    // TODO: change hardcoded values
-                    name = format!("{name};op:havoc;rep:0");
+                    let mut name = generate_base_filename(state)?;
                     if testcase
                         .hit_objectives()
                         .contains(&Cow::Borrowed("TimeoutFeedback"))
