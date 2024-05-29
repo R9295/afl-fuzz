@@ -7,6 +7,7 @@ use std::{borrow::Cow, marker::PhantomData};
 
 use crate::Opt;
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub enum FeedbackLocation {
     Objective,
@@ -20,6 +21,7 @@ pub enum FeedbackLocation {
 /// For `LibAFL` breaking changes, this Feedback will only work if `LibAFL` checks
 /// that the Input is a `Solution` before it checks if it is `corpus_worthy`
 ///
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub struct SeedFeedback<A, S>
 where
