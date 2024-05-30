@@ -20,7 +20,7 @@ use libafl::{
     executors::forkserver::{ForkserverExecutor, ForkserverExecutorBuilder},
     feedback_and, feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{
-        custom_testcase_filename::CustomTestcaseFilenameFeedback, ConstFeedback, CrashFeedback,
+        custom_filename::CustomFilenameToTestcaseFeedback, ConstFeedback, CrashFeedback,
         MaxMapFeedback, TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
@@ -68,7 +68,7 @@ pub fn fuzz<'a>(
     let mut feedback = SeedFeedback::new(
         feedback_or!(
             feedback_or!(map_feedback, TimeFeedback::new(&time_observer)),
-            CustomTestcaseFilenameFeedback::new(generate_corpus_filename)
+            CustomFilenameToTestcaseFeedback::new(generate_corpus_filename)
         ),
         FeedbackLocation::Feedback,
         opt.clone(),
@@ -87,7 +87,7 @@ pub fn fuzz<'a>(
                 ),
                 MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
             ),
-            CustomTestcaseFilenameFeedback::new(generate_solution_filename)
+            CustomFilenameToTestcaseFeedback::new(generate_solution_filename)
         ),
         FeedbackLocation::Objective,
         opt.clone(),
@@ -204,7 +204,8 @@ pub fn fuzz<'a>(
         // Create a randomic Input2State stage
         let rq = MultiMutationalStage::new(AFLppRedQueen::with_cmplog_options(true, true));
 
-        // Create an IfStage and wrap the CmpLog stages in it so we do not run CmpLog on the same Input twice.
+        // Create an IfStage and wrap the CmpLog stages in it
+        // to avoid running CmpLog on the same Input twice.
         let cb = |_fuzzer: &mut _,
                   _executor: &mut _,
                   state: &mut StdState<_, InMemoryCorpus<_>, _, _>,

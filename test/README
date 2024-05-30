@@ -1,1 +1,9 @@
-From LibAFL forkserver_simple
+commit: ec09909dd3d075145cb1f5a764b4c0b02d79b309
+```
+cd libxml2
+make CC=afl-clang-fast CXX=afl-clang-fast++ LD=afl-clang-fast
+cp xmllint ..
+cd ../..
+cargo build --release
+AFL_PERSISTENT=true ./target/release/afl-fuzz -i ./test/in -o ./output ./test/xmllint @@
+```
