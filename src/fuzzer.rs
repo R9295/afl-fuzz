@@ -1,4 +1,4 @@
-use crate::{run_fuzzer_with_stage, utils::PowerScheduleCustom, Opt};
+use crate::{run_fuzzer_with_stage, utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN};
 use core::time::Duration;
 use libafl_bolts::{
     current_nanos, current_time,
@@ -260,6 +260,8 @@ fn base_executor<'a>(
         .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
         .debug_child(opt.debug_child)
+        .min_input_size(opt.min_input_len.unwrap_or(AFL_DEFAULT_INPUT_LEN_MIN))
+        .max_input_size(opt.max_input_len.unwrap_or(AFL_DEFAULT_INPUT_LEN_MAX))
         .envs(target_env)
         .timeout(timeout);
     if let Some(harness_input_type) = &opt.harness_input_stdin {

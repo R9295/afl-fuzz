@@ -32,7 +32,6 @@ fn main() {
             );
         }
     }
-
     fuzz(&opt, map_size, timeout, &target_env);
 }
 
@@ -58,6 +57,11 @@ struct Opt {
     power_schedule: Option<PowerScheduleCustom>,
     #[arg(short = 'c')]
     cmplog_binary: Option<PathBuf>,
+    // Environment + CLI variables
+    #[arg(env = "AFL_INPUT_LEN_MAX", short = 'G')]
+    max_input_len: Option<usize>,
+    #[arg(env = "AFL_INPUT_LEN_MIN", short = 'g')]
+    min_input_len: Option<usize>,
     // Environment Variables
     #[arg(env = "AFL_BENCH_JUST_ONE")]
     bench_just_one: bool,
@@ -95,8 +99,12 @@ struct Opt {
     crash_seed_as_new_crash: bool,
 }
 
+
 const AFL_MAP_SIZE_MIN: u32 = u32::pow(2, 3);
 const AFL_MAP_SIZE_MAX: u32 = u32::pow(2, 30);
+
+const AFL_DEFAULT_INPUT_LEN_MAX: usize = 1_048_576;
+const AFL_DEFAULT_INPUT_LEN_MIN: usize = 1;
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
     let map_size: u32 = s
@@ -110,6 +118,7 @@ fn validate_map_size(s: &str) -> Result<u32, String> {
         ))
     }
 }
+
 
 fn validate_harness_input_type(s: &str) -> Result<String, String> {
     if s != "@@" {
