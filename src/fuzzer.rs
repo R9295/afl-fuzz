@@ -1,4 +1,6 @@
-use crate::{run_fuzzer_with_stage, utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN};
+use crate::{
+    afl_stats::AflStatsStage, run_fuzzer_with_stage, utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN
+};
 use core::time::Duration;
 use libafl_bolts::{
     current_nanos, current_time,
@@ -10,7 +12,7 @@ use libafl_bolts::{
     AsSliceMut,
 };
 use libafl_targets::{cmps::AFLppCmpLogMap, AFLppCmpLogObserver, AFLppCmplogTracingStage};
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use crate::corpus::{generate_corpus_filename, generate_solution_filename};
 use crate::feedback::{FeedbackLocation, SeedFeedback};
@@ -32,8 +34,7 @@ use libafl::{
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, StdWeightedScheduler},
     stages::{
-        mutational::MultiMutationalStage, CalibrationStage, ColorizationStage, IfStage,
-        StdPowerMutationalStage,
+        mutational::MultiMutationalStage, CalibrationStage, ColorizationStage, IfStage, StdPowerMutationalStage
     },
     state::{HasCorpus, HasCurrentTestcase, HasSolutions, HasStartTime, StdState},
     Error, HasFeedback, HasMetadata, HasObjective,
@@ -176,6 +177,9 @@ pub fn fuzz<'a>(
     // Tell [`SeedFeedback`] that we're done loading seeds; rendering it benign.
     fuzzer.objective_mut().done_loading_seeds();
     fuzzer.feedback_mut().done_loading_seeds();
+    
+    // Create a AFLStatsStage TODO: dont hardcore name, derive from  edges observer
+    let afl_stats_stage = AflStatsStage::new(Duration::from_secs(1), Cow::Borrowed("shared_mem"));
 
     // Create a CmpLog executor if configured.
     if let Some(ref cmplog_binary) = opt.cmplog_binary {
@@ -218,7 +222,7 @@ pub fn fuzz<'a>(
         let cmplog = IfStage::new(cb, tuple_list!(colorization, tracing, rq));
 
         // The order of the stages matter!
-        let mut stages = tuple_list!(calibration, cmplog, power);
+        let mut stages = tuple_list!(calibration, cmplog, power, afl_stats_stage);
 
         // Run our fuzzer; WITH CmpLog
         run_fuzzer_with_stage!(
@@ -231,7 +235,7 @@ pub fn fuzz<'a>(
         );
     } else {
         // The order of the stages matter!
-        let mut stages = tuple_list!(calibration, power);
+        let mut stages = tuple_list!(calibration, power, afl_stats_stage);
 
         // Run our fuzzer; NO CmpLog
         run_fuzzer_with_stage!(
