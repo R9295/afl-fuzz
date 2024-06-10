@@ -7,7 +7,7 @@ edition = "2021"
 clap = { version = "4.5.4", features = ["derive", "env"] }
 #libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", features = ["std", "derive"]}
 #libafl_bolts = { git = "https://github.com/AFLplusplus/LibAFL.git"}
-libafl = { path = "../LibAFL/libafl", feautres = ["std", "derive", "afl_stability", "track_hit_feedbacks"]}
+libafl = { path = "../LibAFL/libafl", feautres = ["std", "derive", "afl_stability", "track_hit_feedbacks", "afl_execs_sec"]}
 libafl_bolts = { path = "../LibAFL/libafl_bolts"}
 libafl_targets = { path = "../LibAFL/libafl_targets"}
 nix = "0.29"

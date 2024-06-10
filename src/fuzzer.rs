@@ -1,5 +1,6 @@
 use crate::{
-    afl_stats::AflStatsStage, run_fuzzer_with_stage, utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN
+    afl_stats::AflStatsStage, run_fuzzer_with_stage, utils::PowerScheduleCustom, Opt,
+    AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN,
 };
 use core::time::Duration;
 use libafl_bolts::{
@@ -34,7 +35,8 @@ use libafl::{
     observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, StdWeightedScheduler},
     stages::{
-        mutational::MultiMutationalStage, CalibrationStage, ColorizationStage, IfStage, StdPowerMutationalStage
+        mutational::MultiMutationalStage, CalibrationStage, ColorizationStage, IfStage,
+        StdPowerMutationalStage,
     },
     state::{HasCorpus, HasCurrentTestcase, HasSolutions, HasStartTime, StdState},
     Error, HasFeedback, HasMetadata, HasObjective,
@@ -177,9 +179,21 @@ pub fn fuzz<'a>(
     // Tell [`SeedFeedback`] that we're done loading seeds; rendering it benign.
     fuzzer.objective_mut().done_loading_seeds();
     fuzzer.feedback_mut().done_loading_seeds();
-    
+
     // Create a AFLStatsStage TODO: dont hardcore name, derive from  edges observer
-    let afl_stats_stage = AflStatsStage::new(Duration::from_secs(1), Cow::Borrowed("shared_mem"));
+    let afl_stats_stage = AflStatsStage::new(
+        opt.output_dir.clone(),
+        Duration::from_secs(15),
+        timeout
+            .as_millis()
+            .try_into()
+            .expect("do you really need a u128 timeout??"),
+        Cow::Borrowed("shared_mem"),
+        Cow::Borrowed("shared_mem"),
+        Cow::Borrowed("shared_mem"),
+        Cow::Borrowed("shared_mem"),
+        String::new(),
+    );
 
     // Create a CmpLog executor if configured.
     if let Some(ref cmplog_binary) = opt.cmplog_binary {

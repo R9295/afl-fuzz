@@ -10,7 +10,6 @@ use fuzzer::fuzz;
 mod corpus;
 mod fuzzer;
 mod utils;
-
 use nix::sys::signal::Signal;
 use utils::PowerScheduleCustom;
 
@@ -99,7 +98,6 @@ struct Opt {
     crash_seed_as_new_crash: bool,
 }
 
-
 const AFL_MAP_SIZE_MIN: u32 = u32::pow(2, 3);
 const AFL_MAP_SIZE_MAX: u32 = u32::pow(2, 30);
 
@@ -118,7 +116,6 @@ fn validate_map_size(s: &str) -> Result<u32, String> {
         ))
     }
 }
-
 
 fn validate_harness_input_type(s: &str) -> Result<String, String> {
     if s != "@@" {
