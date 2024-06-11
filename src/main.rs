@@ -87,6 +87,8 @@ struct Opt {
     crash_exitcode: Option<i8>,
     #[arg(env = "AFL_TARGET_ENV")]
     target_env: Option<String>,
+    #[arg(env = "AFL_CYCLE_SCHEDULES")]
+    cycle_schedules: bool,
 
     // Seed config
     #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]

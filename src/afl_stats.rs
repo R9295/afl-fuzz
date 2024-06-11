@@ -39,8 +39,6 @@ where
     map_name: Cow<'static, str>,
     // the number of testcases that have been fuzzed
     has_fuzzed_size: usize,
-    // the number of "favored" testcases that have been fuzzed
-    has_fuzzed_favored: usize,
     // the number of "favored" testcases
     is_favored_size: usize,
     // the last time that we report all stats

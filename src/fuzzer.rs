@@ -118,10 +118,12 @@ pub fn fuzz<'a>(
     let colorization = ColorizationStage::new(&edges_observer);
 
     // Create our Scheduler
-    let scheduler = IndexesLenTimeMinimizerScheduler::new(
-        &edges_observer,
-        StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(strategy.into())),
-    );
+    let mut weighted_scheduler =
+        StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(strategy.into()));
+    if opt.cycle_schedules {
+        weighted_scheduler = weighted_scheduler.cycle_schedules()
+    }
+    let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler);
 
     // Create our Fuzzer
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
