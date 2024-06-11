@@ -89,6 +89,8 @@ struct Opt {
     target_env: Option<String>,
     #[arg(env = "AFL_CYCLE_SCHEDULES")]
     cycle_schedules: bool,
+    #[arg(env = "AFL_CMPLOG_ONLY_NEW")]
+    cmplog_only_new: bool,
 
     // Seed config
     #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]

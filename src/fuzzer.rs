@@ -13,7 +13,11 @@ use libafl_bolts::{
     AsSliceMut,
 };
 use libafl_targets::{cmps::AFLppCmpLogMap, AFLppCmpLogObserver, AFLppCmplogTracingStage};
-use std::{borrow::Cow, collections::HashMap};
+use serde::{Deserialize, Serialize};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+};
 
 use crate::corpus::{generate_corpus_filename, generate_solution_filename};
 use crate::feedback::{FeedbackLocation, SeedFeedback};
@@ -172,6 +176,16 @@ pub fn fuzz<'a>(
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
 
+    // We set IsInitialCorpusEntry as metadata for all initial testcases.
+    // Used in Cmplog stage.
+    // TODO: use for AFL_NO_STARTUP_CALIBRATION
+    for id in state.corpus().ids() {
+        let testcase = state.corpus().get(id).expect("should be present in Corpus");
+        testcase
+            .borrow_mut()
+            .add_metadata(IsInitialCorpusEntryMetadata {})
+    }
+
     // Add the tokens to State
     state.add_metadata(tokens);
 
@@ -191,9 +205,9 @@ pub fn fuzz<'a>(
             .try_into()
             .expect("do you really need a u128 timeout??"),
         Cow::Borrowed("shared_mem"),
-        Cow::Borrowed("shared_mem"),
-        Cow::Borrowed("shared_mem"),
-        Cow::Borrowed("shared_mem"),
+        Cow::Borrowed("shared_mem"), // TODO
+        Cow::Borrowed("shared_mem"), // TODO
+        Cow::Borrowed("shared_mem"), // TODO
         String::new(),
     );
 
@@ -224,16 +238,21 @@ pub fn fuzz<'a>(
         // Create a randomic Input2State stage
         let rq = MultiMutationalStage::new(AFLppRedQueen::with_cmplog_options(true, true));
 
-        // Create an IfStage and wrap the CmpLog stages in it
-        // to avoid running CmpLog on the same Input twice.
+        // Create an IfStage and wrap the CmpLog stages in it.
+        // We run cmplog on the second fuzz run of the testcase.
+        // This stage checks if the testcase has been fuzzed more than twice, if so do not run cmplog.
+        // We also check if it is an initial corpus testcase
+        // and if run with AFL_CMPLOG_ONLY_NEW, then we avoid cmplog.
         let cb = |_fuzzer: &mut _,
                   _executor: &mut _,
                   state: &mut StdState<_, InMemoryCorpus<_>, _, _>,
                   _event_manager: &mut _|
          -> Result<bool, Error> {
             let testcase = state.current_testcase()?;
-            let res = testcase.scheduled_count() == 1;
-            Ok(res)
+            if opt.cmplog_only_new && testcase.has_metadata::<IsInitialCorpusEntryMetadata>() {
+                return Ok(false)
+            }
+            Ok(testcase.scheduled_count() == 1)
         };
         let cmplog = IfStage::new(cb, tuple_list!(colorization, tracing, rq));
 
@@ -289,3 +308,7 @@ fn base_executor<'a>(
     }
     executor
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IsInitialCorpusEntryMetadata {}
+libafl_bolts::impl_serdeany!(IsInitialCorpusEntryMetadata);

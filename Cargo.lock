@@ -27,7 +27,7 @@ dependencies = [
  "libafl_targets",
  "nix",
  "regex",
- "serde_json",
+ "serde",
 ]
 
 [[package]]

@@ -12,7 +12,7 @@ libafl_bolts = { path = "../LibAFL/libafl_bolts"}
 libafl_targets = { path = "../LibAFL/libafl_targets"}
 nix = "0.29"
 regex = "1.10.4"
-serde_json = "1.0.117"
+serde = {version = "1.0.117", features = ["derive"]}
 
 [features]
 default = ["track_hit_feedbacks"]
