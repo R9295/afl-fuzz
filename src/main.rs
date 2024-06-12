@@ -91,6 +91,8 @@ struct Opt {
     cycle_schedules: bool,
     #[arg(env = "AFL_CMPLOG_ONLY_NEW")]
     cmplog_only_new: bool,
+    #[arg(env = "AFL_PRELOAD")]
+    afl_preload: Option<String>,
 
     // Seed config
     #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]

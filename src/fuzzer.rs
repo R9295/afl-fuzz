@@ -14,10 +14,7 @@ use libafl_bolts::{
 };
 use libafl_targets::{cmps::AFLppCmpLogMap, AFLppCmpLogObserver, AFLppCmplogTracingStage};
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-};
+use std::{borrow::Cow, collections::HashMap};
 
 use crate::corpus::{generate_corpus_filename, generate_solution_filename};
 use crate::feedback::{FeedbackLocation, SeedFeedback};
@@ -125,7 +122,7 @@ pub fn fuzz<'a>(
     let mut weighted_scheduler =
         StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(strategy.into()));
     if opt.cycle_schedules {
-        weighted_scheduler = weighted_scheduler.cycle_schedules()
+        weighted_scheduler = weighted_scheduler.cycling_scheduler()
     }
     let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler);
 
@@ -211,6 +208,12 @@ pub fn fuzz<'a>(
         String::new(),
     );
 
+    // Set LD_PRELOAD (Linux) && DYLD_INSERT_LIBRARIES (OSX) for target.
+    if let Some(preload_env) = &opt.afl_preload {
+        std::env::set_var("LD_PRELOAD", preload_env);
+        std::env::set_var("DYLD_INSERT_LIBRARIES", preload_env);
+    }
+
     // Create a CmpLog executor if configured.
     if let Some(ref cmplog_binary) = opt.cmplog_binary {
         // The CmpLog map shared between the CmpLog observer and CmpLog executor
@@ -250,7 +253,7 @@ pub fn fuzz<'a>(
          -> Result<bool, Error> {
             let testcase = state.current_testcase()?;
             if opt.cmplog_only_new && testcase.has_metadata::<IsInitialCorpusEntryMetadata>() {
-                return Ok(false)
+                return Ok(false);
             }
             Ok(testcase.scheduled_count() == 1)
         };
