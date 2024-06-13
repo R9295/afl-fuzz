@@ -116,6 +116,7 @@ pub fn check_autoresume(opt: &Opt) -> Result<Flock<File>, Error> {
     if opt.auto_resume {
         // TODO: once the queue stuff is implemented finish the rest of the function
         // see afl-fuzz-init.c line 1898 onwards. Gotta copy and delete shit
+        // No usable test cases in './output/default/_resume'
     }
     Ok(file)
 }

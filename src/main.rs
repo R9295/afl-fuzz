@@ -11,7 +11,7 @@ mod corpus;
 mod fuzzer;
 mod utils;
 use fuzzer::fuzz;
-use nix::sys::signal::Signal;
+use nix::sys::{signal::Signal, wait::wait};
 use utils::PowerScheduleCustom;
 
 #[allow(clippy::too_many_lines)]
@@ -32,13 +32,37 @@ fn main() {
             );
         }
     }
-    opt.auto_resume = match  opt.auto_resume {
+    if opt.main_name.is_some() && opt.secondary_name.is_some() {
+        eprintln!("Multiple -S or -M options not supported");
+        return;
+    }
+    let fuzzer_name = if let Some(ref name) = opt.main_name {
+        name.clone()
+    } else if let Some(ref name) = opt.secondary_name {
+        name.clone()
+    } else {
+        "default".to_string()
+    };
+    if !fuzzer_name.chars().all(char::is_alphanumeric) {
+        eprintln!("-S/-M must be alphanumeric!");
+        return;
+    }
+    if fuzzer_name == "addseeds" {
+        eprintln!("-M/-S name 'addseeds' is a reserved name, choose something else");
+        return;
+    }
+    // TODO:
+    /* If this is a -S secondary node, ensure a -M main node is running,
+    if a main node is running when another main is started, then warn */
+
+    opt.auto_resume = match opt.auto_resume {
         false => opt.input_dir.as_os_str() == "-",
         true => true,
     };
-    let lock = check_autoresume(&opt).unwrap();
+    opt.output_dir = opt.output_dir.join(&fuzzer_name);
+    let _lock = check_autoresume(&opt).unwrap();
 
-    fuzz(&opt, map_size, timeout, &target_env);
+    fuzz(fuzzer_name, &opt, map_size, timeout, &target_env);
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -63,6 +87,10 @@ struct Opt {
     power_schedule: Option<PowerScheduleCustom>,
     #[arg(short = 'c')]
     cmplog_binary: Option<PathBuf>,
+    #[arg(short = 'M')]
+    main_name: Option<String>,
+    #[arg(short = 'S')]
+    secondary_name: Option<String>,
     // Environment + CLI variables
     #[arg(env = "AFL_INPUT_LEN_MAX", short = 'G')]
     max_input_len: Option<usize>,
@@ -119,7 +147,6 @@ const AFL_MAP_SIZE_MAX: u32 = u32::pow(2, 30);
 const AFL_DEFAULT_INPUT_LEN_MAX: usize = 1_048_576;
 const AFL_DEFAULT_INPUT_LEN_MIN: usize = 1;
 const OUTPUT_GRACE: u64 = 25;
-
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
     let map_size: u32 = s

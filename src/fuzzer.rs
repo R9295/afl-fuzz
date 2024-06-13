@@ -45,6 +45,7 @@ use libafl::{
 
 #[allow(clippy::too_many_lines)]
 pub fn fuzz<'a>(
+    name: String,
     opt: &Opt,
     map_size: usize,
     timeout: Duration,
@@ -202,11 +203,11 @@ pub fn fuzz<'a>(
             .as_millis()
             .try_into()
             .expect("do you really need a u128 timeout??"),
-        Cow::Borrowed("shared_mem"),
         Cow::Borrowed("shared_mem"), // TODO
-        Cow::Borrowed("shared_mem"), // TODO
-        Cow::Borrowed("shared_mem"), // TODO
-        String::new(),
+        Cow::Borrowed("afl_banner"), // TODO
+        Cow::Borrowed("afl_version"), // TODO
+        Cow::Borrowed("target_mode"), // TODO
+        "command line".to_string(), // TODO
     );
 
     // Set LD_PRELOAD (Linux) && DYLD_INSERT_LIBRARIES (OSX) for target.
