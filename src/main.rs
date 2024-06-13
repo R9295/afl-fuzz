@@ -5,17 +5,18 @@ mod afl_stats;
 mod feedback;
 use clap::Parser;
 
-use fuzzer::fuzz;
+use corpus::check_autoresume;
 
 mod corpus;
 mod fuzzer;
 mod utils;
+use fuzzer::fuzz;
 use nix::sys::signal::Signal;
 use utils::PowerScheduleCustom;
 
 #[allow(clippy::too_many_lines)]
 fn main() {
-    let opt = Opt::parse();
+    let mut opt = Opt::parse();
     let map_size: usize = opt
         .map_size
         .try_into()
@@ -31,6 +32,12 @@ fn main() {
             );
         }
     }
+    opt.auto_resume = match  opt.auto_resume {
+        false => opt.input_dir.as_os_str() == "-",
+        true => true,
+    };
+    let lock = check_autoresume(&opt).unwrap();
+
     fuzz(&opt, map_size, timeout, &target_env);
 }
 
@@ -93,6 +100,8 @@ struct Opt {
     cmplog_only_new: bool,
     #[arg(env = "AFL_PRELOAD")]
     afl_preload: Option<String>,
+    #[arg(env = "AFL_AUTORESUME")]
+    auto_resume: bool,
 
     // Seed config
     #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]
@@ -109,6 +118,8 @@ const AFL_MAP_SIZE_MAX: u32 = u32::pow(2, 30);
 
 const AFL_DEFAULT_INPUT_LEN_MAX: usize = 1_048_576;
 const AFL_DEFAULT_INPUT_LEN_MIN: usize = 1;
+const OUTPUT_GRACE: u64 = 25;
+
 
 fn validate_map_size(s: &str) -> Result<u32, String> {
     let map_size: u32 = s

@@ -155,6 +155,7 @@ pub fn fuzz<'a>(
         .unwrap();
 
     // Load our seeds
+    // TODO handle auto resume
     if state.must_load_initial_inputs() {
         state
             .load_initial_inputs(
