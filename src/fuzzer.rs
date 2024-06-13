@@ -14,7 +14,7 @@ use libafl_bolts::{
 };
 use libafl_targets::{cmps::AFLppCmpLogMap, AFLppCmpLogObserver, AFLppCmplogTracingStage};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 
 use crate::corpus::{generate_corpus_filename, generate_solution_filename};
 use crate::feedback::{FeedbackLocation, SeedFeedback};
@@ -46,6 +46,7 @@ use libafl::{
 #[allow(clippy::too_many_lines)]
 pub fn fuzz<'a>(
     name: String,
+    dir: &PathBuf,
     opt: &Opt,
     map_size: usize,
     timeout: Duration,
@@ -102,7 +103,7 @@ pub fn fuzz<'a>(
     let mut state = StdState::new(
         StdRand::with_seed(current_nanos()),
         InMemoryCorpus::<BytesInput>::new(),
-        OnDiskCorpus::new(opt.output_dir.clone()).unwrap(),
+        OnDiskCorpus::new(dir.clone()).unwrap(),
         &mut feedback,
         &mut objective,
     )
@@ -197,17 +198,17 @@ pub fn fuzz<'a>(
 
     // Create a AFLStatsStage TODO: dont hardcore name, derive from  edges observer
     let afl_stats_stage = AflStatsStage::new(
-        opt.output_dir.clone(),
+        dir.clone(),
         Duration::from_secs(15),
         timeout
             .as_millis()
             .try_into()
             .expect("do you really need a u128 timeout??"),
-        Cow::Borrowed("shared_mem"), // TODO
-        Cow::Borrowed("afl_banner"), // TODO
+        Cow::Borrowed("shared_mem"),  // TODO
+        Cow::Borrowed("afl_banner"),  // TODO
         Cow::Borrowed("afl_version"), // TODO
         Cow::Borrowed("target_mode"), // TODO
-        "command line".to_string(), // TODO
+        "command line".to_string(),   // TODO
     );
 
     // Set LD_PRELOAD (Linux) && DYLD_INSERT_LIBRARIES (OSX) for target.

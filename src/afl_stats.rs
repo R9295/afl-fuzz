@@ -218,7 +218,7 @@ where
         // NOTE: scheduled_count represents the amount of fuzzing iterations a
         // testcase has had. Since this stage is kept at the very end of stage list,
         // the entry would have been fuzzed already (and should contain IsFavoredMetadata) but would have a scheduled count of zero
-        // since the scheduled count is incremented after all stages have beenrun.
+        // since the scheduled count is incremented after all stages have been run.
         if testcase.scheduled_count() == 0 {
             // New testcase!
             self.cycles_wo_finds = 0;
@@ -354,6 +354,12 @@ where
         target_mode: Cow<'static, str>,
         command_line: String,
     ) -> Self {
+        if !corpus_dir.join("plot_data").exists() {
+            std::fs::write(corpus_dir.join("plot_data"), AFLPlotData::get_header()).unwrap();
+        }
+        if !corpus_dir.join("fuzzer_stats").exists() {
+            OpenOptions::new().append(true).create(true).open(corpus_dir.join("fuzzer_stats")).unwrap();
+        }
         Self {
             start_time: current_time().as_secs(),
             map_name,
@@ -525,6 +531,11 @@ impl Display for AFLPlotData<'_> {
             self.execs_done,
             self.edges_found
         )
+    }
+}
+impl AFLPlotData<'_> {
+    fn get_header() -> String {
+        return format!("# relative_time, cycles_done, cur_item, corpus_count, pending_total, pending_favs, total_edges, saved_crashes, saved_hangs, max_depth, execs_per_sec, execs_done, edges_found")
     }
 }
 

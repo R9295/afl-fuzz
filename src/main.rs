@@ -5,7 +5,7 @@ mod afl_stats;
 mod feedback;
 use clap::Parser;
 
-use corpus::check_autoresume;
+use corpus::{check_autoresume, main_node_exists};
 
 mod corpus;
 mod fuzzer;
@@ -36,7 +36,9 @@ fn main() {
         eprintln!("Multiple -S or -M options not supported");
         return;
     }
+    let mut is_main_node = false;
     let fuzzer_name = if let Some(ref name) = opt.main_name {
+        is_main_node = true;
         name.clone()
     } else if let Some(ref name) = opt.secondary_name {
         name.clone()
@@ -51,18 +53,44 @@ fn main() {
         eprintln!("-M/-S name 'addseeds' is a reserved name, choose something else");
         return;
     }
-    // TODO:
-    /* If this is a -S secondary node, ensure a -M main node is running,
-    if a main node is running when another main is started, then warn */
+    let fuzzer_dir = opt.output_dir.join(&fuzzer_name);
+    let _lock = check_autoresume(&fuzzer_dir, opt.auto_resume).unwrap();
+    
+    // Instead of warning like AFL++, we will error here.
+    if is_main_node {
+        if main_node_exists(&opt.output_dir).unwrap() {
+            eprintln!("A main node already exists. use -S instead of -M for this instance");
+            return;
+        }
+        std::fs::write(fuzzer_dir.join("is_main_node"), "").unwrap();
+    } else {
+        if !main_node_exists(&opt.output_dir).unwrap() {
+            eprintln!("A main node does not exist. use -M instead of -S for this instance");
+            return;
+        } else {
+            if opt.foreign_sync_dirs.len() > 0 {
+                eprintln!("A secondary will not sync to a foreign fuzzer directory. Use -M for this instance or set -F on the main node instance");
+            }
+        }
+    }
 
     opt.auto_resume = match opt.auto_resume {
         false => opt.input_dir.as_os_str() == "-",
         true => true,
     };
-    opt.output_dir = opt.output_dir.join(&fuzzer_name);
-    let _lock = check_autoresume(&opt).unwrap();
 
-    fuzz(fuzzer_name, &opt, map_size, timeout, &target_env);
+    fuzz(
+        fuzzer_name,
+        &fuzzer_dir,
+        &opt,
+        map_size,
+        timeout,
+        &target_env,
+    );
+    if is_main_node {
+        std::fs::remove_file(fuzzer_dir.join("is_main_node"))
+            .expect("main node should have is_main_node file");
+    }
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -91,6 +119,8 @@ struct Opt {
     main_name: Option<String>,
     #[arg(short = 'S')]
     secondary_name: Option<String>,
+    #[arg(short = 'F')]
+    foreign_sync_dirs: Vec<PathBuf>,
     // Environment + CLI variables
     #[arg(env = "AFL_INPUT_LEN_MAX", short = 'G')]
     max_input_len: Option<usize>,

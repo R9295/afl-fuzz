@@ -1,4 +1,5 @@
-    use std::{
+
+use std::{
     borrow::Cow,
     fs::File,
     io::{BufRead, BufReader},
@@ -13,7 +14,10 @@ use libafl::{
     Error,
 };
 use libafl_bolts::{current_time, rands::StdRand};
-use nix::{errno::Errno, fcntl::{Flock, FlockArg}};
+use nix::{
+    errno::Errno,
+    fcntl::{Flock, FlockArg},
+};
 
 use crate::{Opt, OUTPUT_GRACE};
 
@@ -69,28 +73,27 @@ pub fn generate_solution_filename(
 }
 
 // We return the File since the lock is released on drop.
-pub fn check_autoresume(opt: &Opt) -> Result<Flock<File>, Error> {
-    let output_dir = &opt.output_dir;
-    if !output_dir.exists() {
-        std::fs::create_dir_all(&output_dir)?;
+pub fn check_autoresume(fuzzer_dir: &PathBuf, auto_resume: bool) -> Result<Flock<File>, Error> {
+    if !fuzzer_dir.exists() {
+        std::fs::create_dir_all(&fuzzer_dir)?;
     }
-    // lock the output dir
-    let output_dir_fd = File::open(&output_dir)?;
-    let file = match Flock::lock(output_dir_fd, FlockArg::LockExclusiveNonblock) {
-      Ok(l) => l,
-      Err(err) => {
-            match err.1 {
-                Errno::EWOULDBLOCK => {
-                    return Err(Error::illegal_state("Looks like the job output directory is being actively used by another instance"))
-                }
-                _ => {
-                    return Err(Error::illegal_state(format!("Error creating lock for output dir: exit code {}", err.1).as_str()))
-                }
+    // lock the fuzzer dir
+    let fuzzer_dir_fd = File::open(&fuzzer_dir)?;
+    let file = match Flock::lock(fuzzer_dir_fd, FlockArg::LockExclusiveNonblock) {
+        Ok(l) => l,
+        Err(err) => match err.1 {
+            Errno::EWOULDBLOCK => return Err(Error::illegal_state(
+                "Looks like the job output directory is being actively used by another instance",
+            )),
+            _ => {
+                return Err(Error::illegal_state(
+                    format!("Error creating lock for output dir: exit code {}", err.1).as_str(),
+                ))
             }
         },
     };
-    // Check if we have an existing fuzzed output_dir
-    let stats_file = output_dir.join("fuzzer_stats");
+    // Check if we have an existing fuzzed fuzzer_dir
+    let stats_file = fuzzer_dir.join("fuzzer_stats");
     if stats_file.exists() {
         let file = File::open(&stats_file).unwrap();
         let reader = BufReader::new(file);
@@ -109,14 +112,28 @@ pub fn check_autoresume(opt: &Opt) -> Result<Flock<File>, Error> {
                 _ => break,
             }
         }
-        if !opt.auto_resume && last_update.saturating_sub(start_time) > OUTPUT_GRACE * 60 {
+        if !auto_resume && last_update.saturating_sub(start_time) > OUTPUT_GRACE * 60 {
             return Err(Error::illegal_state("The job output directory already exists and contains results! use AFL_AUTORESUME=true or provide \"-\" for -i "));
         }
     }
-    if opt.auto_resume {
+    if auto_resume {
         // TODO: once the queue stuff is implemented finish the rest of the function
         // see afl-fuzz-init.c line 1898 onwards. Gotta copy and delete shit
         // No usable test cases in './output/default/_resume'
     }
     Ok(file)
+}
+
+pub fn main_node_exists(output_dir: &PathBuf) -> Result<bool, Error> {
+    let mut main_found = false;
+    for entry in std::fs::read_dir(&output_dir)?.filter_map(|p| p.ok()) {
+        let path = entry.path();
+        if path.is_dir() {
+            if path.join("is_main_node").exists() {
+                main_found = true;
+                break;
+            }
+        }
+    }
+    Ok(main_found)
 }
