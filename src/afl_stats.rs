@@ -174,13 +174,13 @@ pub struct AFLPlotData<'a> {
     corpus_count: &'a usize,
     pending_total: &'a usize,
     pending_favs: &'a usize,
-    /// Note: renamed map_size -> total_edges for consistency with fuzzer_stats
+    /// Note: renamed `map_size` -> `total_edges` for consistency with `fuzzer_stats`
     total_edges: &'a u64,
     saved_crashes: &'a u64,
     saved_hangs: &'a u64,
     max_depth: &'a u64,
     execs_per_sec: &'a u64,
-    /// Note: renamed total_execs -> execs_done for consistency with fuzzer_stats
+    /// Note: renamed `total_execs` -> `execs_done` for consistency with `fuzzer_stats`
     execs_done: &'a u64,
     edges_found: &'a u64,
 }
@@ -358,7 +358,11 @@ where
             std::fs::write(corpus_dir.join("plot_data"), AFLPlotData::get_header()).unwrap();
         }
         if !corpus_dir.join("fuzzer_stats").exists() {
-            OpenOptions::new().append(true).create(true).open(corpus_dir.join("fuzzer_stats")).unwrap();
+            OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(corpus_dir.join("fuzzer_stats"))
+                .unwrap();
         }
         Self {
             start_time: current_time().as_secs(),
@@ -535,7 +539,7 @@ impl Display for AFLPlotData<'_> {
 }
 impl AFLPlotData<'_> {
     fn get_header() -> String {
-        return format!("# relative_time, cycles_done, cur_item, corpus_count, pending_total, pending_favs, total_edges, saved_crashes, saved_hangs, max_depth, execs_per_sec, execs_done, edges_found")
+        "# relative_time, cycles_done, cur_item, corpus_count, pending_total, pending_favs, total_edges, saved_crashes, saved_hangs, max_depth, execs_per_sec, execs_done, edges_found".to_string()
     }
 }
 

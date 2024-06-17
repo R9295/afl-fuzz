@@ -1,14 +1,12 @@
-
 use std::{
     borrow::Cow,
     fs::File,
     io::{BufRead, BufReader},
     path::PathBuf,
-    time::Duration,
 };
 
 use libafl::{
-    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus, Testcase},
+    corpus::{Corpus, OnDiskCorpus, Testcase},
     inputs::BytesInput,
     state::{HasCorpus, HasExecutions, HasStartTime, StdState},
     Error,
@@ -19,10 +17,10 @@ use nix::{
     fcntl::{Flock, FlockArg},
 };
 
-use crate::{Opt, OUTPUT_GRACE};
+use crate::OUTPUT_GRACE;
 
 pub fn generate_base_filename(
-    state: &mut StdState<BytesInput, InMemoryCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
+    state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
 ) -> String {
     let time = if state.must_load_initial_inputs() {
         0
@@ -42,10 +40,11 @@ pub fn generate_base_filename(
 }
 
 #[allow(clippy::unnecessary_wraps)]
-pub fn generate_corpus_filename(
-    state: &mut StdState<BytesInput, InMemoryCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
+pub fn set_corpus_filepath(
+    state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
     testcase: &mut Testcase<BytesInput>,
-) -> Result<String, Error> {
+    output_dir: &PathBuf,
+) -> Result<(), Error> {
     let mut name = generate_base_filename(state);
     if testcase
         .hit_feedbacks()
@@ -53,32 +52,39 @@ pub fn generate_corpus_filename(
     {
         name = format!("{name},+cov");
     }
-    Ok(name)
+    *testcase.filename_mut() = Some(name);
+    // We don't need to set the path since everything goes into one dir unlike with Objectives
+    Ok(())
 }
 #[allow(clippy::unnecessary_wraps)]
-pub fn generate_solution_filename(
-    state: &mut StdState<BytesInput, InMemoryCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
+pub fn set_solution_filepath(
+    state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
     testcase: &mut Testcase<BytesInput>,
-) -> Result<String, Error> {
+    output_dir: &PathBuf,
+) -> Result<(), Error> {
     // sig:0SIGNAL
     // TODO: verify if 0 time if objective found during seed loading
-    let mut name = generate_base_filename(state);
+    let mut filename = generate_base_filename(state);
+    let mut dir = "crashes";
     if testcase
         .hit_objectives()
         .contains(&Cow::Borrowed("TimeoutFeedback"))
     {
-        name = format!("{name},+tout");
+        filename = format!("{filename},+tout");
+        dir = "hangs";
     }
-    Ok(name)
+    *testcase.file_path_mut() = Some(output_dir.join(dir).join(&filename));
+    *testcase.filename_mut() = Some(filename);
+    Ok(())
 }
 
 // We return the File since the lock is released on drop.
 pub fn check_autoresume(fuzzer_dir: &PathBuf, auto_resume: bool) -> Result<Flock<File>, Error> {
     if !fuzzer_dir.exists() {
-        std::fs::create_dir_all(&fuzzer_dir)?;
+        std::fs::create_dir_all(fuzzer_dir)?;
     }
     // lock the fuzzer dir
-    let fuzzer_dir_fd = File::open(&fuzzer_dir)?;
+    let fuzzer_dir_fd = File::open(fuzzer_dir)?;
     let file = match Flock::lock(fuzzer_dir_fd, FlockArg::LockExclusiveNonblock) {
         Ok(l) => l,
         Err(err) => match err.1 {
@@ -126,13 +132,11 @@ pub fn check_autoresume(fuzzer_dir: &PathBuf, auto_resume: bool) -> Result<Flock
 
 pub fn main_node_exists(output_dir: &PathBuf) -> Result<bool, Error> {
     let mut main_found = false;
-    for entry in std::fs::read_dir(&output_dir)?.filter_map(|p| p.ok()) {
+    for entry in std::fs::read_dir(output_dir)?.filter_map(std::result::Result::ok) {
         let path = entry.path();
-        if path.is_dir() {
-            if path.join("is_main_node").exists() {
-                main_found = true;
-                break;
-            }
+        if path.is_dir() && path.join("is_main_node").exists() {
+            main_found = true;
+            break;
         }
     }
     Ok(main_found)

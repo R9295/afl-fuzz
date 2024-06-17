@@ -1,6 +1,6 @@
 use crate::{
-    afl_stats::AflStatsStage, run_fuzzer_with_stage, utils::PowerScheduleCustom, Opt,
-    AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN,
+    afl_stats::AflStatsStage, feedback::CustomFilepathToTestcaseFeedback, run_fuzzer_with_stage,
+    utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN,
 };
 use core::time::Duration;
 use libafl_bolts::{
@@ -16,17 +16,14 @@ use libafl_targets::{cmps::AFLppCmpLogMap, AFLppCmpLogObserver, AFLppCmplogTraci
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 
-use crate::corpus::{generate_corpus_filename, generate_solution_filename};
+use crate::corpus::{set_corpus_filepath, set_solution_filepath};
 use crate::feedback::{FeedbackLocation, SeedFeedback};
 use libafl::{
-    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
+    corpus::{Corpus, OnDiskCorpus},
     events::SimpleEventManager,
     executors::forkserver::{ForkserverExecutor, ForkserverExecutorBuilder},
     feedback_and, feedback_and_fast, feedback_or, feedback_or_fast,
-    feedbacks::{
-        custom_filename::CustomFilenameToTestcaseFeedback, ConstFeedback, CrashFeedback,
-        MaxMapFeedback, TimeFeedback, TimeoutFeedback,
-    },
+    feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::BytesInput,
     monitors::SimpleMonitor,
@@ -74,7 +71,7 @@ pub fn fuzz<'a>(
     let mut feedback = SeedFeedback::new(
         feedback_or!(
             feedback_or!(map_feedback, TimeFeedback::new(&time_observer)),
-            CustomFilenameToTestcaseFeedback::new(generate_corpus_filename)
+            CustomFilepathToTestcaseFeedback::new(set_corpus_filepath, dir.clone())
         ),
         FeedbackLocation::Feedback,
         opt.clone(),
@@ -93,7 +90,7 @@ pub fn fuzz<'a>(
                 ),
                 MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
             ),
-            CustomFilenameToTestcaseFeedback::new(generate_solution_filename)
+            CustomFilepathToTestcaseFeedback::new(set_solution_filepath, dir.clone())
         ),
         FeedbackLocation::Objective,
         opt.clone(),
@@ -102,12 +99,15 @@ pub fn fuzz<'a>(
     // Initialize our State, and it's EventManager utility.
     let mut state = StdState::new(
         StdRand::with_seed(current_nanos()),
-        InMemoryCorpus::<BytesInput>::new(),
-        OnDiskCorpus::new(dir.clone()).unwrap(),
+        OnDiskCorpus::<BytesInput>::new(dir.join("queue")).unwrap(),
+        OnDiskCorpus::<BytesInput>::new(dir).unwrap(),
         &mut feedback,
         &mut objective,
     )
     .unwrap();
+    // Create our (sub) directories for Objectives
+    std::fs::create_dir(dir.join("crashes")).expect("should be able to create crashes dir");
+    std::fs::create_dir(dir.join("hangs")).expect("should be able to create hangs dir");
     let monitor = SimpleMonitor::new(|s| println!("{s}"));
     let mut mgr = SimpleEventManager::new(monitor);
 
@@ -124,7 +124,7 @@ pub fn fuzz<'a>(
     let mut weighted_scheduler =
         StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(strategy.into()));
     if opt.cycle_schedules {
-        weighted_scheduler = weighted_scheduler.cycling_scheduler()
+        weighted_scheduler = weighted_scheduler.cycling_scheduler();
     }
     let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, weighted_scheduler);
 
@@ -133,7 +133,6 @@ pub fn fuzz<'a>(
 
     // Create the base Executor
     let mut executor = base_executor(opt, timeout, map_size, target_env, &mut shmem_provider);
-
     // Set a custom exit code to be interpreted as a Crash if configured.
     if let Some(crash_exitcode) = opt.crash_exitcode {
         executor = executor.crash_exitcode(crash_exitcode);
@@ -183,7 +182,7 @@ pub fn fuzz<'a>(
         let testcase = state.corpus().get(id).expect("should be present in Corpus");
         testcase
             .borrow_mut()
-            .add_metadata(IsInitialCorpusEntryMetadata {})
+            .add_metadata(IsInitialCorpusEntryMetadata {});
     }
 
     // Add the tokens to State
@@ -251,7 +250,7 @@ pub fn fuzz<'a>(
         // and if run with AFL_CMPLOG_ONLY_NEW, then we avoid cmplog.
         let cb = |_fuzzer: &mut _,
                   _executor: &mut _,
-                  state: &mut StdState<_, InMemoryCorpus<_>, _, _>,
+                  state: &mut StdState<_, OnDiskCorpus<_>, _, _>,
                   _event_manager: &mut _|
          -> Result<bool, Error> {
             let testcase = state.current_testcase()?;

@@ -11,7 +11,7 @@ mod corpus;
 mod fuzzer;
 mod utils;
 use fuzzer::fuzz;
-use nix::sys::{signal::Signal, wait::wait};
+use nix::sys::signal::Signal;
 use utils::PowerScheduleCustom;
 
 #[allow(clippy::too_many_lines)]
@@ -55,7 +55,7 @@ fn main() {
     }
     let fuzzer_dir = opt.output_dir.join(&fuzzer_name);
     let _lock = check_autoresume(&fuzzer_dir, opt.auto_resume).unwrap();
-    
+
     // Instead of warning like AFL++, we will error here.
     if is_main_node {
         if main_node_exists(&opt.output_dir).unwrap() {
@@ -63,15 +63,11 @@ fn main() {
             return;
         }
         std::fs::write(fuzzer_dir.join("is_main_node"), "").unwrap();
-    } else {
-        if !main_node_exists(&opt.output_dir).unwrap() {
-            eprintln!("A main node does not exist. use -M instead of -S for this instance");
-            return;
-        } else {
-            if opt.foreign_sync_dirs.len() > 0 {
-                eprintln!("A secondary will not sync to a foreign fuzzer directory. Use -M for this instance or set -F on the main node instance");
-            }
-        }
+    } else if !main_node_exists(&opt.output_dir).unwrap() {
+        eprintln!("A main node does not exist. use -M instead of -S for this instance");
+        return;
+    } else if !opt.foreign_sync_dirs.is_empty() {
+        eprintln!("A secondary will not sync to a foreign fuzzer directory. Use -M for this instance or set -F on the main node instance");
     }
 
     opt.auto_resume = match opt.auto_resume {
