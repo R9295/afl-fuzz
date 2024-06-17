@@ -83,6 +83,7 @@ fn main() {
         timeout,
         &target_env,
     );
+    // TODO: run this on cleanup / register ctrl-c handler
     if is_main_node {
         std::fs::remove_file(fuzzer_dir.join("is_main_node"))
             .expect("main node should have is_main_node file");
