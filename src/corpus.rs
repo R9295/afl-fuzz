@@ -22,20 +22,22 @@ use crate::OUTPUT_GRACE;
 pub fn generate_base_filename(
     state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
 ) -> String {
-    let time = if state.must_load_initial_inputs() {
-        0
-    } else {
-        (current_time() - *state.start_time()).as_secs()
-    };
+    let is_seed = state.must_load_initial_inputs();
     let id = state.corpus().peek_free_id();
-    let src = if let Some(parent_id) = state.corpus().current() {
-        parent_id.to_string()
+    let name = if is_seed {
+        // TODO set orig filename
+        format!("id:{id:0>6},time:0,execs:0,orig:TODO",)
     } else {
-        String::new()
+        // TODO: change hardcoded values of op (operation aka stage_name) & rep (amount of stacked mutations applied)
+        let src = if let Some(parent_id) = state.corpus().current() {
+            parent_id.to_string()
+        } else {
+            String::new()
+        };
+        let execs = *state.executions();
+        let time = (current_time() - *state.start_time()).as_secs();
+        format!("id:{id:0>6},src:{src:0>6},time:{time},execs:{execs},op:havoc,rep:0",)
     };
-    let execs = *state.executions();
-    // TODO: change hardcoded values of op (operation aka stage_name) & rep (amount of stacked mutations applied)
-    let name = format!("id:{id:0>6};src:{src:0>6};time:{time};execs:{execs};op:havoc;rep:0",);
     name
 }
 
@@ -43,7 +45,7 @@ pub fn generate_base_filename(
 pub fn set_corpus_filepath(
     state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
     testcase: &mut Testcase<BytesInput>,
-    output_dir: &PathBuf,
+    _output_dir: &PathBuf,
 ) -> Result<(), Error> {
     let mut name = generate_base_filename(state);
     if testcase
