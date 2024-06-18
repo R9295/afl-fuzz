@@ -4,6 +4,7 @@ use crate::{
 };
 use core::time::Duration;
 use libafl_bolts::{
+    core_affinity::CoreId,
     current_nanos, current_time,
     fs::get_unique_std_input_file,
     ownedref::OwnedRefMut,
@@ -20,13 +21,13 @@ use crate::corpus::{set_corpus_filepath, set_solution_filepath};
 use crate::feedback::{FeedbackLocation, SeedFeedback};
 use libafl::{
     corpus::{Corpus, OnDiskCorpus},
-    events::SimpleEventManager,
+    events::{hooks::EventManagerHooksTuple, LlmpRestartingEventManager, SimpleEventManager},
     executors::forkserver::{ForkserverExecutor, ForkserverExecutorBuilder},
     feedback_and, feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::BytesInput,
-    monitors::SimpleMonitor,
+    monitors::{Monitor, MultiMonitor, SimpleMonitor},
     mutators::{
         scheduled::havoc_mutations, tokens_mutations, AFLppRedQueen, StdScheduledMutator, Tokens,
     },
@@ -36,19 +37,34 @@ use libafl::{
         mutational::MultiMutationalStage, CalibrationStage, ColorizationStage, IfStage,
         StdPowerMutationalStage,
     },
-    state::{HasCorpus, HasCurrentTestcase, HasSolutions, HasStartTime, StdState},
+    state::{
+        HasCorpus, HasCurrentTestcase, HasExecutions, HasLastReportTime, HasSolutions,
+        HasStartTime, State, StdState,
+    },
     Error, HasFeedback, HasMetadata, HasObjective,
 };
 
+type LibaflFuzzState =
+    StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>;
 #[allow(clippy::too_many_lines)]
-pub fn fuzz<'a>(
-    name: String,
-    dir: &PathBuf,
+pub fn run_client<'a, EMH, SP>(
+    state: Option<LibaflFuzzState>,
+    mut restarting_mgr: LlmpRestartingEventManager<EMH, LibaflFuzzState, SP>,
+    core_id: CoreId,
     opt: &Opt,
     map_size: usize,
     timeout: Duration,
     target_env: &HashMap<&'a str, &'a str>,
-) {
+) -> Result<(), Error>
+where
+    EMH: EventManagerHooksTuple<LibaflFuzzState> + Copy + Clone,
+    SP: ShMemProvider,
+    EMH: EventManagerHooksTuple<LibaflFuzzState>,
+{
+    // TODO: this won't work for restarts since cores are set dynamically
+    // so one fuzzer may get the corpus of another fuzzer on restart.
+    let output_dir = opt.output_dir.clone().join(format!("fuzzer_{}", core_id.0));
+
     // Create the shared memory map
     let mut shmem_provider = UnixShMemProvider::new().unwrap();
     let mut shmem = shmem_provider.new_shmem(map_size).unwrap();
@@ -71,7 +87,7 @@ pub fn fuzz<'a>(
     let mut feedback = SeedFeedback::new(
         feedback_or!(
             feedback_or!(map_feedback, TimeFeedback::new(&time_observer)),
-            CustomFilepathToTestcaseFeedback::new(set_corpus_filepath, dir.clone())
+            CustomFilepathToTestcaseFeedback::new(set_corpus_filepath, output_dir.clone())
         ),
         FeedbackLocation::Feedback,
         opt.clone(),
@@ -90,26 +106,26 @@ pub fn fuzz<'a>(
                 ),
                 MaxMapFeedback::with_name("mapfeedback_metadata_objective", &edges_observer)
             ),
-            CustomFilepathToTestcaseFeedback::new(set_solution_filepath, dir.clone())
+            CustomFilepathToTestcaseFeedback::new(set_solution_filepath, output_dir.clone())
         ),
         FeedbackLocation::Objective,
         opt.clone(),
     );
 
-    // Initialize our State, and it's EventManager utility.
-    let mut state = StdState::new(
-        StdRand::with_seed(current_nanos()),
-        OnDiskCorpus::<BytesInput>::new(dir.join("queue")).unwrap(),
-        OnDiskCorpus::<BytesInput>::new(dir).unwrap(),
-        &mut feedback,
-        &mut objective,
-    )
-    .unwrap();
+    // Initialize our State if necessary
+    let mut state = state.unwrap_or_else(|| {
+        StdState::new(
+            StdRand::with_seed(current_nanos()),
+            OnDiskCorpus::<BytesInput>::new(output_dir.join("queue")).unwrap(),
+            OnDiskCorpus::<BytesInput>::new(output_dir.clone()).unwrap(),
+            &mut feedback,
+            &mut objective,
+        )
+        .unwrap()
+    });
     // Create our (sub) directories for Objectives
-    std::fs::create_dir(dir.join("crashes")).expect("should be able to create crashes dir");
-    std::fs::create_dir(dir.join("hangs")).expect("should be able to create hangs dir");
-    let monitor = SimpleMonitor::new(|s| println!("{s}"));
-    let mut mgr = SimpleEventManager::new(monitor);
+    std::fs::create_dir(output_dir.join("crashes")).expect("should be able to create crashes dir");
+    std::fs::create_dir(output_dir.join("hangs")).expect("should be able to create hangs dir");
 
     // Create our Mutational Stage.
     let power = StdPowerMutationalStage::new(StdScheduledMutator::new(
@@ -162,7 +178,7 @@ pub fn fuzz<'a>(
             .load_initial_inputs(
                 &mut fuzzer,
                 &mut executor,
-                &mut mgr,
+                &mut restarting_mgr,
                 &[opt.input_dir.clone()],
             )
             .unwrap_or_else(|err| {
@@ -197,7 +213,7 @@ pub fn fuzz<'a>(
 
     // Create a AFLStatsStage TODO: dont hardcore name, derive from  edges observer
     let afl_stats_stage = AflStatsStage::new(
-        dir.clone(),
+        output_dir.clone(),
         Duration::from_secs(15),
         timeout
             .as_millis()
@@ -271,7 +287,7 @@ pub fn fuzz<'a>(
             &mut stages,
             &mut executor,
             &mut state,
-            &mut mgr
+            &mut restarting_mgr
         );
     } else {
         // The order of the stages matter!
@@ -284,9 +300,10 @@ pub fn fuzz<'a>(
             &mut stages,
             &mut executor,
             &mut state,
-            &mut mgr
+            &mut restarting_mgr
         );
     }
+    Ok(())
     // TODO: serialize state when exiting.
 }
 

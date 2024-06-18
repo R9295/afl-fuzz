@@ -1,6 +1,6 @@
 #![deny(clippy::pedantic)]
 use core::time::Duration;
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 mod afl_stats;
 mod feedback;
 use clap::Parser;
@@ -10,13 +10,22 @@ use corpus::{check_autoresume, main_node_exists};
 mod corpus;
 mod fuzzer;
 mod utils;
-use fuzzer::fuzz;
+use fuzzer::run_client;
+use libafl::{
+    events::{EventConfig, Launcher},
+    monitors::MultiMonitor,
+    Error,
+};
+use libafl_bolts::{
+    core_affinity::Cores,
+    shmem::{ShMemProvider, UnixShMemProvider},
+};
 use nix::sys::signal::Signal;
 use utils::PowerScheduleCustom;
 
 #[allow(clippy::too_many_lines)]
 fn main() {
-    let mut opt = Opt::parse();
+    let opt = Opt::parse();
     let map_size: usize = opt
         .map_size
         .try_into()
@@ -32,7 +41,40 @@ fn main() {
             );
         }
     }
-    if opt.main_name.is_some() && opt.secondary_name.is_some() {
+
+    // Create the shared memory map provider for LLMP
+    let shmem_provider = UnixShMemProvider::new().unwrap();
+
+    // Create our Monitor
+    let monitor = MultiMonitor::new(|s| println!("{s}"));
+
+    match Launcher::builder()
+        .shmem_provider(shmem_provider)
+        .configuration(EventConfig::from_name("default"))
+        .monitor(monitor)
+        .run_client(|state: Option<_>, restarting_mgr: _, core_id: _| {
+            run_client(
+                state,
+                restarting_mgr,
+                core_id,
+                &opt,
+                map_size,
+                timeout,
+                &target_env,
+            )
+        })
+        .cores(&opt.cores)
+        .broker_port(opt.broker_port)
+        .remote_broker_addr(opt.broker_addr)
+        .stdout_file(Some("/dev/null"))
+        .build()
+        .launch()
+    {
+        Ok(()) => (),
+        Err(Error::ShuttingDown) => println!("Fuzzing stopped by user. Good bye."),
+        Err(err) => panic!("Failed to run launcher: {err:?}"),
+    }
+    /* if opt.main_name.is_some() && opt.secondary_name.is_some() {
         eprintln!("Multiple -S or -M options not supported");
         return;
     }
@@ -82,12 +124,12 @@ fn main() {
         map_size,
         timeout,
         &target_env,
-    );
+    ); */
     // TODO: run this on cleanup / register ctrl-c handler
-    if is_main_node {
+    /* if is_main_node {
         std::fs::remove_file(fuzzer_dir.join("is_main_node"))
             .expect("main node should have is_main_node file");
-    }
+    } */
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -157,6 +199,13 @@ struct Opt {
     afl_preload: Option<String>,
     #[arg(env = "AFL_AUTORESUME")]
     auto_resume: bool,
+    // New Environment Variables
+    #[arg(env = "AFL_NUM_CORES", value_parser = Cores::from_cmdline)]
+    cores: Cores,
+    #[arg(env = "AFL_BROKER_PORT", default_value = "1337")]
+    broker_port: u16,
+    #[arg(env = "AFL_BROKER_ADDR")]
+    broker_addr: Option<SocketAddr>,
 
     // Seed config
     #[arg(env = "AFL_EXIT_ON_SEED_ISSUES")]
