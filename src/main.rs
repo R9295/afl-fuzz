@@ -84,52 +84,6 @@ fn main() {
         Err(Error::ShuttingDown) => println!("Fuzzing stopped by user. Good bye."),
         Err(err) => panic!("Failed to run launcher: {err:?}"),
     }
-    /* if opt.main_name.is_some() && opt.secondary_name.is_some() {
-        eprintln!("Multiple -S or -M options not supported");
-        return;
-    }
-    let mut is_main_node = false;
-    let fuzzer_name = if let Some(ref name) = opt.main_name {
-        is_main_node = true;
-        name.clone()
-    } else if let Some(ref name) = opt.secondary_name {
-        name.clone()
-    } else {
-        "default".to_string()
-    };
-    if !fuzzer_name.chars().all(char::is_alphanumeric) {
-        eprintln!("-S/-M must be alphanumeric!");
-        return;
-    }
-    if fuzzer_name == "addseeds" {
-        eprintln!("-M/-S name 'addseeds' is a reserved name, choose something else");
-        return;
-    }
-    let fuzzer_dir = opt.output_dir.join(&fuzzer_name);
-
-    // Instead of warning like AFL++, we will error here.
-    if is_main_node {
-        if main_node_exists(&opt.output_dir).unwrap() {
-            eprintln!("A main node already exists. use -S instead of -M for this instance");
-            return;
-        }
-        std::fs::write(fuzzer_dir.join("is_main_node"), "").unwrap();
-    } else if !main_node_exists(&opt.output_dir).unwrap() {
-        eprintln!("A main node does not exist. use -M instead of -S for this instance");
-        return;
-    } else if !opt.foreign_sync_dirs.is_empty() {
-        eprintln!("A secondary will not sync to a foreign fuzzer directory. Use -M for this instance or set -F on the main node instance");
-    }
-
-
-    fuzz(
-        fuzzer_name,
-        &fuzzer_dir,
-        &opt,
-        map_size,
-        timeout,
-        &target_env,
-    ); */
     // TODO: run this on cleanup / register ctrl-c handler
     /* if is_main_node {
         std::fs::remove_file(fuzzer_dir.join("is_main_node"))
@@ -159,10 +113,6 @@ struct Opt {
     power_schedule: Option<PowerScheduleCustom>,
     #[arg(short = 'c')]
     cmplog_binary: Option<PathBuf>,
-    #[arg(short = 'M')]
-    main_name: Option<String>,
-    #[arg(short = 'S')]
-    secondary_name: Option<String>,
     #[arg(short = 'F')]
     foreign_sync_dirs: Vec<PathBuf>,
     // Environment + CLI variables
