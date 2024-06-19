@@ -52,6 +52,12 @@ fn main() {
     // Create our Monitor
     let monitor = MultiMonitor::new(|s| println!("{s}"));
 
+    opt.auto_resume = match opt.auto_resume {
+        false => opt.input_dir.as_os_str() == "-",
+        true => true,
+    };
+    /*     let _lock = check_autoresume(&fuzzer_dir, opt.auto_resume).unwrap(); */
+
     match Launcher::builder()
         .shmem_provider(shmem_provider)
         .configuration(EventConfig::from_name("default"))
@@ -100,7 +106,6 @@ fn main() {
         return;
     }
     let fuzzer_dir = opt.output_dir.join(&fuzzer_name);
-    let _lock = check_autoresume(&fuzzer_dir, opt.auto_resume).unwrap();
 
     // Instead of warning like AFL++, we will error here.
     if is_main_node {
@@ -116,10 +121,6 @@ fn main() {
         eprintln!("A secondary will not sync to a foreign fuzzer directory. Use -M for this instance or set -F on the main node instance");
     }
 
-    opt.auto_resume = match opt.auto_resume {
-        false => opt.input_dir.as_os_str() == "-",
-        true => true,
-    };
 
     fuzz(
         fuzzer_name,

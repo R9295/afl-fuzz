@@ -1,6 +1,7 @@
 use crate::{
     afl_stats::AflStatsStage, feedback::CustomFilepathToTestcaseFeedback, run_fuzzer_with_stage,
-    utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN, SHMEM_ENV_VAR,
+    utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN,
+    SHMEM_ENV_VAR,
 };
 use core::time::Duration;
 use libafl_bolts::{
@@ -172,21 +173,24 @@ where
         .build(tuple_list!(time_observer, edges_observer))
         .unwrap();
 
-    // Load our seeds
-    // TODO handle auto resume
+    // Load our seeds.
+    // When autoresuming, we only load our own queue.
     if state.must_load_initial_inputs() {
+        let initial_inputs = match opt.auto_resume {
+            true => &[output_dir.join("queue")],
+            false => &[opt.input_dir.clone()],
+        };
         state
             .load_initial_inputs(
                 &mut fuzzer,
                 &mut executor,
                 &mut restarting_mgr,
-                &[opt.input_dir.clone()],
+                initial_inputs,
             )
             .unwrap_or_else(|err| {
                 panic!(
                     "Failed to load initial corpus at {:?}: {:?}",
-                    &[opt.input_dir.clone()],
-                    err
+                    initial_inputs, err
                 )
             });
         println!("We imported {} inputs from disk.", state.corpus().count());
