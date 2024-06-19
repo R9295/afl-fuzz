@@ -8,6 +8,7 @@ use clap::Parser;
 use corpus::{check_autoresume, main_node_exists};
 
 mod corpus;
+mod executor;
 mod fuzzer;
 mod utils;
 use fuzzer::run_client;
@@ -25,12 +26,15 @@ use utils::PowerScheduleCustom;
 
 #[allow(clippy::too_many_lines)]
 fn main() {
-    let opt = Opt::parse();
+    let mut opt = Opt::parse();
     let map_size: usize = opt
         .map_size
         .try_into()
         .expect("we should be able to convert map_size to usize");
     let timeout = Duration::from_millis(opt.hang_timeout);
+
+    executor::check_binary(&mut opt, SHMEM_ENV_VAR).expect("binary to be valid");
+
     let mut target_env = HashMap::new();
     if let Some(ref target_env_str) = opt.target_env {
         let env_regex = regex::Regex::new(r"([^\s=]+)\s*=\s*([^\s]+)").unwrap();
@@ -139,7 +143,7 @@ fn main() {
     about = "afl-fuzz, now in rust!",
     author = "r9295 <aarnavbos@gmail.com>"
 )]
-/// The commandline args the fuzzer accepts
+/// The Configuration
 struct Opt {
     executable: PathBuf,
     #[arg(value_parser = validate_harness_input_type)]
@@ -199,6 +203,11 @@ struct Opt {
     afl_preload: Option<String>,
     #[arg(env = "AFL_AUTORESUME")]
     auto_resume: bool,
+    #[arg(env = "AFL_SKIP_BIN_CHECK")]
+    skip_bin_check: bool,
+    #[arg(env = "AFL_DEFER_FORKSRV")]
+    defer_forkserver: bool,
+
     // New Environment Variables
     #[arg(env = "AFL_NUM_CORES", value_parser = Cores::from_cmdline)]
     cores: Cores,
@@ -215,6 +224,11 @@ struct Opt {
     ignore_seed_issues: bool,
     #[arg(env = "AFL_CRASHING_SEED_AS_NEW_CRASH")]
     crash_seed_as_new_crash: bool,
+
+    uses_asan: bool,
+    frida_mode: bool,
+    qemu_mode: bool,
+    nyx_mode: bool,
 }
 
 const AFL_MAP_SIZE_MIN: u32 = u32::pow(2, 3);
@@ -224,6 +238,9 @@ const AFL_DEFAULT_INPUT_LEN_MAX: usize = 1_048_576;
 const AFL_DEFAULT_INPUT_LEN_MIN: usize = 1;
 const OUTPUT_GRACE: u64 = 25;
 
+const PERSIST_SIG: &str = "##SIG_AFL_PERSISTENT##";
+const DEFER_SIG: &str = "##SIG_AFL_DEFER_FORKSRV##";
+const SHMEM_ENV_VAR: &str = "__AFL_SHM_ID";
 fn validate_map_size(s: &str) -> Result<u32, String> {
     let map_size: u32 = s
         .parse()

@@ -19,9 +19,7 @@ use nix::{
 
 use crate::{fuzzer::LibaflFuzzState, OUTPUT_GRACE};
 
-pub fn generate_base_filename(
-    state: &mut LibaflFuzzState,
-) -> String {
+pub fn generate_base_filename(state: &mut LibaflFuzzState) -> String {
     let is_seed = state.must_load_initial_inputs();
     let id = state.corpus().peek_free_id();
     let name = if is_seed {
@@ -41,9 +39,8 @@ pub fn generate_base_filename(
     name
 }
 
-#[allow(clippy::unnecessary_wraps)]
 pub fn set_corpus_filepath(
-    state: &mut LibaflFuzzState, 
+    state: &mut LibaflFuzzState,
     testcase: &mut Testcase<BytesInput>,
     _output_dir: &PathBuf,
 ) -> Result<(), Error> {
@@ -58,7 +55,6 @@ pub fn set_corpus_filepath(
     // We don't need to set the path since everything goes into one dir unlike with Objectives
     Ok(())
 }
-#[allow(clippy::unnecessary_wraps)]
 pub fn set_solution_filepath(
     state: &mut LibaflFuzzState,
     testcase: &mut Testcase<BytesInput>,

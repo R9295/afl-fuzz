@@ -25,6 +25,7 @@ dependencies = [
  "libafl",
  "libafl_bolts",
  "libafl_targets",
+ "memmap2",
  "nix",
  "regex",
  "serde",
@@ -672,6 +673,15 @@ checksum = "c6f8614cf855d251be1c2138d330c04f134923fddec0dcfc8b6f58ac499bf248"
 dependencies = [
  "num-traits",
  "serde",
+]
+
+[[package]]
+name = "memmap2"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe751422e4a8caa417e13c3ea66452215d7d63e19e604f4980461212f3ae1322"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

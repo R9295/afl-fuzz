@@ -10,6 +10,7 @@ clap = { version = "4.5.4", features = ["derive", "env"] }
 libafl = { path = "../LibAFL/libafl", feautres = ["std", "derive", "afl_stability", "track_hit_feedbacks", "afl_execs_sec"]}
 libafl_bolts = { path = "../LibAFL/libafl_bolts"}
 libafl_targets = { path = "../LibAFL/libafl_targets"}
+memmap2 = "0.9.4"
 nix = {version = "0.29", features = ["fs"]}
 regex = "1.10.5"
 serde = {version = "1.0.117", features = ["derive"]}

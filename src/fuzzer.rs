@@ -1,6 +1,6 @@
 use crate::{
     afl_stats::AflStatsStage, feedback::CustomFilepathToTestcaseFeedback, run_fuzzer_with_stage,
-    utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN,
+    utils::PowerScheduleCustom, Opt, AFL_DEFAULT_INPUT_LEN_MAX, AFL_DEFAULT_INPUT_LEN_MIN, SHMEM_ENV_VAR,
 };
 use core::time::Duration;
 use libafl_bolts::{
@@ -69,7 +69,7 @@ where
     // Create the shared memory map
     let mut shmem_provider = UnixShMemProvider::new().unwrap();
     let mut shmem = shmem_provider.new_shmem(map_size).unwrap();
-    shmem.write_to_env("__AFL_SHM_ID").unwrap();
+    shmem.write_to_env(SHMEM_ENV_VAR).unwrap();
     let shmem_buf = shmem.as_slice_mut();
 
     // Create an observation channel to keep track of the edges hit
