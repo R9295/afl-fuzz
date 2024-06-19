@@ -1,7 +1,6 @@
 use std::{
     fs::File,
     os::{linux::fs::MetadataExt, unix::fs::PermissionsExt},
-    path::PathBuf,
 };
 
 use libafl::Error;
@@ -9,7 +8,7 @@ use memmap2::{Mmap, MmapOptions};
 
 use crate::{Opt, DEFER_SIG, PERSIST_SIG};
 
-// TODO a few more things
+// TODO more checks and logging
 pub fn check_binary(opt: &mut Opt, shmem_env_var: &str) -> Result<(), Error> {
     let bin_path = &opt.executable;
     let metadata = bin_path.metadata()?;

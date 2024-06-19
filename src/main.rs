@@ -56,8 +56,7 @@ fn main() {
         false => opt.input_dir.as_os_str() == "-",
         true => true,
     };
-    /*     let _lock = check_autoresume(&fuzzer_dir, opt.auto_resume).unwrap(); */
-
+    // TODO: check if we need to auto-resume.
     match Launcher::builder()
         .shmem_provider(shmem_provider)
         .configuration(EventConfig::from_name("default"))
