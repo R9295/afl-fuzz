@@ -44,8 +44,9 @@ use libafl::{
     Error, HasFeedback, HasMetadata, HasObjective,
 };
 
-type LibaflFuzzState =
+pub type LibaflFuzzState =
     StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>;
+
 #[allow(clippy::too_many_lines)]
 pub fn run_client<'a, EMH, SP>(
     state: Option<LibaflFuzzState>,

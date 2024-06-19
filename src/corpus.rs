@@ -17,10 +17,10 @@ use nix::{
     fcntl::{Flock, FlockArg},
 };
 
-use crate::OUTPUT_GRACE;
+use crate::{fuzzer::LibaflFuzzState, OUTPUT_GRACE};
 
 pub fn generate_base_filename(
-    state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
+    state: &mut LibaflFuzzState,
 ) -> String {
     let is_seed = state.must_load_initial_inputs();
     let id = state.corpus().peek_free_id();
@@ -43,7 +43,7 @@ pub fn generate_base_filename(
 
 #[allow(clippy::unnecessary_wraps)]
 pub fn set_corpus_filepath(
-    state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
+    state: &mut LibaflFuzzState, 
     testcase: &mut Testcase<BytesInput>,
     _output_dir: &PathBuf,
 ) -> Result<(), Error> {
@@ -60,7 +60,7 @@ pub fn set_corpus_filepath(
 }
 #[allow(clippy::unnecessary_wraps)]
 pub fn set_solution_filepath(
-    state: &mut StdState<BytesInput, OnDiskCorpus<BytesInput>, StdRand, OnDiskCorpus<BytesInput>>,
+    state: &mut LibaflFuzzState,
     testcase: &mut Testcase<BytesInput>,
     output_dir: &PathBuf,
 ) -> Result<(), Error> {
