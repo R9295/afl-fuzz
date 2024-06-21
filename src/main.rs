@@ -157,6 +157,9 @@ struct Opt {
     skip_bin_check: bool,
     #[arg(env = "AFL_DEFER_FORKSRV")]
     defer_forkserver: bool,
+    /// in seconds
+    #[arg(env = "AFL_FUZZER_STATS_UPDATE_INTERVAL", default_value="60")]
+    stats_interval: u64,
 
     // New Environment Variables
     #[arg(env = "AFL_NUM_CORES", value_parser = Cores::from_cmdline)]

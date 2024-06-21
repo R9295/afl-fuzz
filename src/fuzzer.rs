@@ -198,7 +198,6 @@ where
 
     // We set IsInitialCorpusEntry as metadata for all initial testcases.
     // Used in Cmplog stage.
-    // TODO: use for AFL_NO_STARTUP_CALIBRATION
     for id in state.corpus().ids() {
         let testcase = state.corpus().get(id).expect("should be present in Corpus");
         testcase
@@ -219,7 +218,7 @@ where
     // Create a AFLStatsStage TODO: dont hardcore name, derive from  edges observer
     let afl_stats_stage = AflStatsStage::new(
         output_dir.clone(),
-        Duration::from_secs(15),
+        Duration::from_secs(opt.stats_interval),
         timeout
             .as_millis()
             .try_into()
@@ -323,9 +322,10 @@ fn base_executor<'a>(
         .program(opt.executable.clone())
         .shmem_provider(shmem_provider)
         .coverage_map_size(map_size)
-        .is_persistent(opt.is_persistent)
         .kill_signal(opt.kill_signal)
         .debug_child(opt.debug_child)
+        .is_persistent(opt.is_persistent)
+        .is_deferred_frksrv(opt.defer_forkserver)
         .min_input_size(opt.min_input_len.unwrap_or(AFL_DEFAULT_INPUT_LEN_MIN))
         .max_input_size(opt.max_input_len.unwrap_or(AFL_DEFAULT_INPUT_LEN_MAX))
         .envs(target_env)
