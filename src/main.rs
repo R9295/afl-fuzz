@@ -6,12 +6,13 @@ mod feedback;
 use clap::Parser;
 
 use corpus::{check_autoresume, main_node_exists};
-
 mod corpus;
 mod executor;
 mod fuzzer;
+mod hooks;
 mod utils;
-use fuzzer::run_client;
+use fuzzer::{run_client, LibaflFuzzState};
+use hooks::LibAflFuzzEventHook;
 use libafl::{
     events::{EventConfig, Launcher},
     monitors::MultiMonitor,
@@ -20,6 +21,7 @@ use libafl::{
 use libafl_bolts::{
     core_affinity::Cores,
     shmem::{ShMemProvider, UnixShMemProvider},
+    tuples::tuple_list,
 };
 use nix::sys::signal::Signal;
 use utils::PowerScheduleCustom;
@@ -51,6 +53,7 @@ fn main() {
 
     // Create our Monitor
     let monitor = MultiMonitor::new(|s| println!("{s}"));
+    /*     let monitor = MultiMonitor::new(|s| {}); */
 
     opt.auto_resume = match opt.auto_resume {
         false => opt.input_dir.as_os_str() == "-",
@@ -59,7 +62,7 @@ fn main() {
     // TODO: check if we need to auto-resume.
     match Launcher::builder()
         .shmem_provider(shmem_provider)
-        .configuration(EventConfig::from_name("default"))
+        .configuration(EventConfig::AlwaysUnique)
         .monitor(monitor)
         .run_client(|state: Option<_>, restarting_mgr: _, core_id: _| {
             run_client(
@@ -77,7 +80,7 @@ fn main() {
         .remote_broker_addr(opt.broker_addr)
         .stdout_file(Some("/dev/null"))
         .build()
-        .launch()
+        .launch_with_hooks(tuple_list!(LibAflFuzzEventHook::new(opt.bench_until_crash)))
     {
         Ok(()) => (),
         Err(Error::ShuttingDown) => println!("Fuzzing stopped by user. Good bye."),
@@ -158,7 +161,7 @@ struct Opt {
     #[arg(env = "AFL_DEFER_FORKSRV")]
     defer_forkserver: bool,
     /// in seconds
-    #[arg(env = "AFL_FUZZER_STATS_UPDATE_INTERVAL", default_value="60")]
+    #[arg(env = "AFL_FUZZER_STATS_UPDATE_INTERVAL", default_value = "60")]
     stats_interval: u64,
 
     // New Environment Variables

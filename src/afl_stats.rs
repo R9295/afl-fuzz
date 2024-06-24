@@ -321,16 +321,10 @@ where
         self.write_plot_data(&plot_data)?;
         Ok(())
     }
-
-    #[inline]
-    fn restart_progress_should_run(&mut self, _state: &mut Self::State) -> Result<bool, Error> {
-        // Not running the target so we wont't crash/timeout and, hence, don't need to restore anything
+    fn should_restart(&mut self, state: &mut Self::State) -> Result<bool, Error> {
         Ok(true)
     }
-
-    #[inline]
-    fn clear_restart_progress(&mut self, _state: &mut Self::State) -> Result<(), Error> {
-        // Not running the target so we wont't crash/timeout and, hence, don't need to restore anything
+    fn clear_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
         Ok(())
     }
 }

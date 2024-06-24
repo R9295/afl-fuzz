@@ -22,7 +22,7 @@ use crate::corpus::{set_corpus_filepath, set_solution_filepath};
 use crate::feedback::{FeedbackLocation, SeedFeedback};
 use libafl::{
     corpus::{Corpus, OnDiskCorpus},
-    events::{hooks::EventManagerHooksTuple, LlmpRestartingEventManager, SimpleEventManager},
+    events::{EventManagerHooksTuple, LlmpRestartingEventManager, SimpleEventManager},
     executors::forkserver::{ForkserverExecutor, ForkserverExecutorBuilder},
     feedback_and, feedback_and_fast, feedback_or, feedback_or_fast,
     feedbacks::{ConstFeedback, CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
@@ -258,7 +258,7 @@ where
                 .unwrap();
 
         // Create the CmpLog tracing stage.
-        let tracing = AFLppCmplogTracingStage::with_cmplog_observer(cmplog_executor, cmplog_ref);
+        let tracing = AFLppCmplogTracingStage::new(cmplog_executor, cmplog_ref);
 
         // Create a randomic Input2State stage
         let rq = MultiMutationalStage::new(AFLppRedQueen::with_cmplog_options(true, true));

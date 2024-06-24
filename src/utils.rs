@@ -39,11 +39,8 @@ macro_rules! run_fuzzer_with_stage {
         } else if $opt.bench_until_crash {
             loop {
                 $fuzzer
-                    .fuzz_one($stages, $executor, $state, $mgr)
-                    .expect("error fuzzing one;");
-                if $state.solutions().count() > 0 {
-                    break;
-                }
+                    .fuzz_loop_for($stages, $executor, $state, $mgr, 1)
+                    .expect("Error benching just once");
             }
         } else {
             $fuzzer
