@@ -16,7 +16,7 @@ use nix::libc::{getrusage, rusage, RUSAGE_CHILDREN};
 
 use libafl::{
     corpus::{Corpus, HasCurrentCorpusId, SchedulerTestcaseMetadata, Testcase},
-    events::EventFirer,
+    events::{Event, EventFirer},
     inputs::UsesInput,
     schedulers::{minimizer::IsFavoredMetadata, SchedulerMetadata},
     stages::{calibrate::UnstableEntriesMetadata, Stage},
@@ -209,6 +209,7 @@ where
         state: &mut E::State,
         _manager: &mut EM,
     ) -> Result<(), Error> {
+        _manager.fire(state, Event::Stop)?;
         let Some(corpus_idx) = state.current_corpus_id()? else {
             return Err(Error::illegal_state(
                 "state is not currently processing a corpus index",
@@ -256,7 +257,7 @@ where
         let stats = AFLFuzzerStats {
             start_time: self.start_time,
             last_update: self.last_report_time.as_secs(),
-            run_time: self.start_time - self.last_report_time.as_secs(),
+            run_time: self.last_report_time.as_secs() - self.start_time,
             fuzzer_pid: self.pid,
             cycles_done: queue_cycles,
             cycles_wo_find: self.cycles_wo_finds,
@@ -284,7 +285,7 @@ where
             last_find: self.last_find,
             last_hang: self.last_hang,
             last_crash: self.last_crash,
-            execs_since_crash: self.execs_at_last_objective - total_executions,
+            execs_since_crash: total_executions - self.execs_at_last_objective,
             exec_timeout: self.exec_timeout, // TODO
             slowest_exec_ms: self.slowest_exec.as_millis(),
             peak_rss_mb: self.peak_rss_mb()?,
